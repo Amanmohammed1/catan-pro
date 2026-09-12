@@ -14,11 +14,12 @@
     "test:watch": "vitest",
     "verify:pure": "node scripts/verify-engine-pure.mjs",
     "verify:boundary": "node scripts/verify-boundary-fires.mjs",
-    "verify": "pnpm run lint && pnpm run typecheck && pnpm run verify:pure && pnpm run verify:boundary && pnpm run test",
+    "verify": "pnpm run lint && pnpm run typecheck && pnpm run verify:pure && pnpm run verify:boundary && pnpm run test && pnpm run test:slow",
     "dev": "pnpm --filter @hexport/web dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "fuzz": "pnpm --filter @hexport/bot-runner fuzz"
+    "fuzz": "pnpm --filter @hexport/bot-runner fuzz",
+    "test:slow": "vitest run -c vitest.slow.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

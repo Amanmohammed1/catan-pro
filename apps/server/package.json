@@ -1,0 +1,22 @@
+{
+  "name": "@hexport/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hexport/engine": "workspace:*",
+    "@hexport/protocol": "workspace:*",
+    "@hexport/scenarios": "workspace:*",
+    "fastify": "5.12.4",
+    "ws": "8.21.3"
+  },
+  "devDependencies": {
+    "@types/ws": "8.18.1",
+    "@types/node": "22.20.2"
+  }
+}

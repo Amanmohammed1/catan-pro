@@ -1,0 +1,391 @@
+/**
+ * A room: seats, lobby, and the match once it starts.
+ *
+ * Rooms own all mutable session state. The Match owns the rules. Keeping those
+ * apart is what lets a player disconnect and rejoin without the game noticing.
+ */
+
+import { randomBytes } from "node:crypto";
+import {
+  ROOM_CODE_ALPHABET,
+  type ChatLine,
+  type RoomSeat,
+  type RoomView,
+  type ServerMessage,
+  type TimerState,
+} from "@hexport/protocol";
+import type { Action, GameEvent, PlayerId, Scenario } from "@hexport/engine";
+import { Match } from "./match.js";
+import { commitToSeed, generateSeed } from "./fairness.js";
+
+export interface Connection {
+  send(message: ServerMessage): void;
+  close(): void;
+}
+
+export interface Seat {
+  readonly player: PlayerId;
+  nickname: string;
+  /** Secret that lets this seat be resumed on a new socket. */
+  readonly token: string;
+  connection: Connection | null;
+  ready: boolean;
+}
+
+export interface RoomOptions {
+  readonly code: string;
+  readonly scenario: Scenario;
+  readonly maxPlayers: number;
+  readonly matchId: string;
+  /** Milliseconds a player has to act before auto-pass. 0 disables. */
+  readonly turnTimeoutMs?: number;
+  readonly now?: () => number;
+  readonly onCommand?: (
+    actor: PlayerId,
+    action: Action,
+    events: readonly GameEvent[],
+    seq: number,
+  ) => void;
+  readonly onFinished?: (winner: PlayerId | null) => void;
+}
+
+export function generateRoomCode(): string {
+  const bytes = randomBytes(5);
+  let code = "";
+  for (const byte of bytes) {
+    code += ROOM_CODE_ALPHABET[byte % ROOM_CODE_ALPHABET.length];
+  }
+  return code;
+}
+
+export class Room {
+  public readonly code: string;
+  public readonly matchId: string;
+  public readonly scenario: Scenario;
+  public readonly maxPlayers: number;
+  public readonly seed: string;
+  public readonly seedCommitment: string;
+
+  private readonly seats: Seat[] = [];
+  private readonly chatLog: ChatLine[] = [];
+  private readonly now: () => number;
+  private readonly turnTimeoutMs: number;
+  private readonly onCommand: RoomOptions["onCommand"];
+  private readonly onFinished: RoomOptions["onFinished"];
+
+  private match: Match | null = null;
+  private hostPlayer: PlayerId | null = null;
+  private timerDeadline: number | null = null;
+  private timerPlayer: PlayerId | null = null;
+
+  public constructor(options: RoomOptions) {
+    this.code = options.code;
+    this.matchId = options.matchId;
+    this.scenario = options.scenario;
+    this.maxPlayers = Math.min(options.maxPlayers, options.scenario.players.max);
+    this.now = options.now ?? (() => Date.now());
+    this.turnTimeoutMs = options.turnTimeoutMs ?? 0;
+    this.onCommand = options.onCommand;
+    this.onFinished = options.onFinished;
+    this.seed = generateSeed();
+    this.seedCommitment = commitToSeed(this.seed);
+  }
+
+  // ---- seats -------------------------------------------------------------
+
+  public get started(): boolean {
+    return this.match !== null;
+  }
+
+  public get playerCount(): number {
+    return this.seats.length;
+  }
+
+  public get isEmpty(): boolean {
+    return this.seats.every((seat) => seat.connection === null);
+  }
+
+  public seatOf(token: string): Seat | undefined {
+    return this.seats.find((seat) => seat.token === token);
+  }
+
+  public seatFor(player: PlayerId): Seat | undefined {
+    return this.seats.find((seat) => seat.player === player);
+  }
+
+  public join(
+    nickname: string,
+  ): { ok: true; seat: Seat } | { ok: false; reason: string } {
+    if (this.match !== null) {
+      return { ok: false, reason: "That game has already started." };
+    }
+    if (this.seats.length >= this.maxPlayers) {
+      return { ok: false, reason: "That room is full." };
+    }
+
+    const seat: Seat = {
+      player: this.seats.length,
+      nickname: this.uniqueNickname(nickname),
+      token: randomBytes(18).toString("base64url"),
+      connection: null,
+      ready: false,
+    };
+    this.seats.push(seat);
+    if (this.hostPlayer === null) this.hostPlayer = seat.player;
+
+    return { ok: true, seat };
+  }
+
+  /** Two players called "Sam" is a support ticket waiting to happen. */
+  private uniqueNickname(wanted: string): string {
+    const taken = new Set(this.seats.map((s) => s.nickname.toLowerCase()));
+    if (!taken.has(wanted.toLowerCase())) return wanted;
+    for (let i = 2; i < 20; i++) {
+      const candidate = `${wanted} ${String(i)}`;
+      if (!taken.has(candidate.toLowerCase())) return candidate;
+    }
+    return `${wanted} ${randomBytes(2).toString("hex")}`;
+  }
+
+  public attach(seat: Seat, connection: Connection): void {
+    // A second socket for the same seat replaces the first, rather than both
+    // receiving updates. Otherwise a stale tab keeps acting as the player.
+    seat.connection?.close();
+    seat.connection = connection;
+  }
+
+  public detach(seat: Seat): void {
+    seat.connection = null;
+  }
+
+  /** Remove a seat entirely. Only legal before the game starts. */
+  public removeSeat(player: PlayerId): boolean {
+    if (this.match !== null) return false;
+    const index = this.seats.findIndex((seat) => seat.player === player);
+    if (index < 0) return false;
+
+    const [removed] = this.seats.splice(index, 1);
+    removed?.connection?.close();
+
+    // Seat numbers are positional, so close the gap.
+    for (let i = 0; i < this.seats.length; i++) {
+      const seat = this.seats[i];
+      if (seat !== undefined) {
+        (seat as { player: PlayerId }).player = i;
+      }
+    }
+    if (this.hostPlayer !== null && this.hostPlayer >= this.seats.length) {
+      this.hostPlayer = this.seats.length > 0 ? 0 : null;
+    }
+    return true;
+  }
+
+  public isHost(player: PlayerId): boolean {
+    return this.hostPlayer === player;
+  }
+
+  // ---- lobby -------------------------------------------------------------
+
+  public setReady(player: PlayerId, ready: boolean): void {
+    const seat = this.seatFor(player);
+    if (seat !== undefined) seat.ready = ready;
+  }
+
+  public canStart(): { ok: true } | { ok: false; reason: string } {
+    if (this.match !== null) return { ok: false, reason: "Already started." };
+    if (this.seats.length < this.scenario.players.min) {
+      return {
+        ok: false,
+        reason: `Needs at least ${String(this.scenario.players.min)} players.`,
+      };
+    }
+    if (!this.seats.every((seat) => seat.ready)) {
+      return { ok: false, reason: "Not everyone is ready." };
+    }
+    return { ok: true };
+  }
+
+  public start(): { ok: true } | { ok: false; reason: string } {
+    const allowed = this.canStart();
+    if (!allowed.ok) return allowed;
+
+    this.match = new Match({
+      scenario: this.scenario,
+      seed: this.seed,
+      playerNames: this.seats.map((seat) => seat.nickname),
+      now: this.now,
+    });
+    this.resetTimer();
+    return { ok: true };
+  }
+
+  /** Restore an in-progress match, e.g. after a server restart. */
+  public restore(
+    match: Match,
+    seats: readonly { nickname: string; token: string }[],
+  ): void {
+    this.seats.length = 0;
+    seats.forEach((info, index) => {
+      this.seats.push({
+        player: index,
+        nickname: info.nickname,
+        token: info.token,
+        connection: null,
+        ready: true,
+      });
+    });
+    this.hostPlayer = this.seats.length > 0 ? 0 : null;
+    this.match = match;
+    this.resetTimer();
+  }
+
+  // ---- play --------------------------------------------------------------
+
+  public getMatch(): Match | null {
+    return this.match;
+  }
+
+  public command(
+    actor: PlayerId,
+    action: Action,
+  ): { ok: true; events: readonly GameEvent[] } | { ok: false; reason: string } {
+    const match = this.match;
+    if (match === null) return { ok: false, reason: "The game has not started." };
+
+    const seq = match.commandLog.length;
+    const result = match.apply(actor, action);
+    if (!result.ok) return result;
+
+    this.onCommand?.(actor, action, result.events, seq);
+    this.resetTimer();
+
+    if (match.isOver) {
+      this.timerDeadline = null;
+      this.timerPlayer = null;
+      this.onFinished?.(match.winner);
+    }
+
+    return result;
+  }
+
+  // ---- turn timer --------------------------------------------------------
+
+  public get timer(): TimerState | null {
+    if (this.timerDeadline === null || this.timerPlayer === null) return null;
+    return { player: this.timerPlayer, deadline: this.timerDeadline };
+  }
+
+  private resetTimer(): void {
+    if (this.turnTimeoutMs <= 0 || this.match === null || this.match.isOver) {
+      this.timerDeadline = null;
+      this.timerPlayer = null;
+      return;
+    }
+    const waiting = this.match.waitingOn();
+    const next = waiting[0];
+    if (next === undefined) {
+      this.timerDeadline = null;
+      this.timerPlayer = null;
+      return;
+    }
+    this.timerPlayer = next;
+    this.timerDeadline = this.now() + this.turnTimeoutMs;
+  }
+
+  /**
+   * Auto-pass anyone who has run out of time.
+   *
+   * Called on a tick rather than a per-turn setTimeout so a paused or backgrounded
+   * process cannot leave a game wedged. Returns the commands it played.
+   */
+  public tickTimer(): { actor: PlayerId; action: Action }[] {
+    const played: { actor: PlayerId; action: Action }[] = [];
+    const match = this.match;
+    if (match === null || match.isOver) return played;
+    if (this.turnTimeoutMs <= 0) return played;
+    if (this.timerDeadline === null || this.now() < this.timerDeadline) return played;
+
+    // Bounded: one expiry may unblock the next player, but never loop forever.
+    for (let guard = 0; guard < 8; guard++) {
+      if (match.isOver) break;
+      const waiting = match.waitingOn();
+      const actor = waiting[0];
+      if (actor === undefined) break;
+
+      const action = autoPassAction(match.legalFor(actor));
+      if (action === null) break;
+
+      const result = this.command(actor, action);
+      if (!result.ok) break;
+      played.push({ actor, action });
+
+      if (this.timerDeadline === null || this.now() < this.timerDeadline) break;
+    }
+
+    return played;
+  }
+
+  // ---- chat --------------------------------------------------------------
+
+  public addChat(line: ChatLine): void {
+    this.chatLog.push(line);
+    if (this.chatLog.length > 200) this.chatLog.shift();
+  }
+
+  public get chat(): readonly ChatLine[] {
+    return this.chatLog;
+  }
+
+  // ---- views -------------------------------------------------------------
+
+  public view(you: PlayerId | null): RoomView {
+    const seats: RoomSeat[] = this.seats.map((seat) => ({
+      player: seat.player,
+      nickname: seat.nickname,
+      connected: seat.connection !== null,
+      ready: seat.ready,
+      isHost: this.hostPlayer === seat.player,
+    }));
+
+    return {
+      code: this.code,
+      scenarioId: this.scenario.id,
+      seats,
+      started: this.started,
+      you,
+      hostPlayer: this.hostPlayer,
+      maxPlayers: this.maxPlayers,
+    };
+  }
+
+  public broadcast(build: (seat: Seat) => ServerMessage | null): void {
+    for (const seat of this.seats) {
+      if (seat.connection === null) continue;
+      const message = build(seat);
+      if (message !== null) seat.connection.send(message);
+    }
+  }
+
+  public allSeats(): readonly Seat[] {
+    return this.seats;
+  }
+}
+
+/**
+ * What to play on behalf of a player who has timed out.
+ *
+ * Prefers the least destructive option: ending the turn, or rolling so the game
+ * can move on. Falls back to the first legal move for phases like discarding or
+ * moving the robber, where doing nothing is not an option.
+ */
+export function autoPassAction(moves: readonly Action[]): Action | null {
+  return (
+    moves.find((m) => m.t === "endTurn") ??
+    moves.find((m) => m.t === "rollDice") ??
+    moves.find((m) => m.t === "endRoadBuilding") ??
+    moves.find((m) => m.t === "cancelTrade") ??
+    moves.find((m) => m.t === "respondTrade" && !m.accept) ??
+    moves[0] ??
+    null
+  );
+}
