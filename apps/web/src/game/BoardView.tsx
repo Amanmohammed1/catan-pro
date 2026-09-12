@@ -3,10 +3,12 @@ import {
   hexCornerPixels,
   hexToPixel,
   nodeToPixel,
+  type BoardGraph,
+  type Building,
   type EdgeId,
-  type GameState,
   type Layout,
   type NodeId,
+  type PlayerId,
   type Terrain,
   type TileId,
 } from "@hexport/engine";
@@ -16,8 +18,11 @@ import {
  *
  * CLAUDE.md, "Client rules": this is a view of engine state and holds no game
  * logic. It does not know the distance rule or what a road costs. Every
- * highlighted spot is passed in, derived from legalMoves() by the caller, which
- * is what keeps the engine the single source of truth (golden rule 3).
+ * highlighted spot is passed in, derived from legalMoves by the caller, which is
+ * what keeps the engine the single source of truth (golden rule 3).
+ *
+ * It takes only public board data, never a GameState, so the same component
+ * renders a hot-seat game and a redacted online one.
  */
 
 const LAYOUT: Layout = { orientation: "pointy", size: 1, origin: [0, 0] };
@@ -45,7 +50,12 @@ const TERRAIN_LABEL: Record<Terrain, string> = {
 };
 
 export interface BoardViewProps {
-  readonly state: GameState;
+  readonly board: BoardGraph;
+  readonly roads: Readonly<Record<EdgeId, PlayerId>>;
+  readonly buildings: Readonly<Record<NodeId, Building>>;
+  readonly robber: TileId;
+  /** Seat colours, indexed by player. */
+  readonly colors: readonly string[];
   readonly highlightNodes: ReadonlySet<NodeId>;
   readonly highlightEdges: ReadonlySet<EdgeId>;
   readonly highlightTiles: ReadonlySet<TileId>;
@@ -56,7 +66,11 @@ export interface BoardViewProps {
 }
 
 export function BoardView({
-  state,
+  board,
+  roads,
+  buildings,
+  robber,
+  colors,
   highlightNodes,
   highlightEdges,
   highlightTiles,
@@ -67,7 +81,7 @@ export function BoardView({
 }: BoardViewProps): React.JSX.Element {
   const geometry = useMemo(() => {
     const positions = new Map<string, readonly [number, number]>();
-    for (const id of Object.keys(state.board.nodes)) {
+    for (const id of Object.keys(board.nodes)) {
       positions.set(id, nodeToPixel(LAYOUT, id));
     }
 
@@ -89,16 +103,16 @@ export function BoardView({
         .map((n) => n.toFixed(3))
         .join(" "),
     };
-  }, [state.board]);
+  }, [board]);
 
-  const colorOf = (player: number): string => state.players[player]?.color ?? "#888";
+  const colorOf = (player: number): string => colors[player] ?? "#888";
 
   return (
     <svg viewBox={geometry.viewBox} className="board" role="img">
       <title>Game board</title>
 
       {/* terrain */}
-      {Object.values(state.board.tiles).map((tile) => {
+      {Object.values(board.tiles).map((tile) => {
         const points = hexCornerPixels(LAYOUT, tile.coord)
           .map(([x, y]) => `${String(x)},${String(y)}`)
           .join(" ");
@@ -165,7 +179,7 @@ export function BoardView({
 
       {/* the robber */}
       {(() => {
-        const tile = state.board.tiles[state.robber];
+        const tile = board.tiles[robber];
         if (tile === undefined) return null;
         const [x, y] = hexToPixel(LAYOUT, tile.coord);
         return (
@@ -190,11 +204,11 @@ export function BoardView({
       })()}
 
       {/* roads */}
-      {Object.values(state.board.edges).map((edge) => {
+      {Object.values(board.edges).map((edge) => {
         const a = geometry.positions.get(edge.nodes[0]);
         const b = geometry.positions.get(edge.nodes[1]);
         if (a === undefined || b === undefined) return null;
-        const owner = state.roads[edge.id];
+        const owner = roads[edge.id];
         const targetable = highlightEdges.has(edge.id);
 
         return (
@@ -231,7 +245,7 @@ export function BoardView({
       })}
 
       {/* harbors */}
-      {Object.values(state.board.ports).map((port) => {
+      {Object.values(board.ports).map((port) => {
         const a = geometry.positions.get(port.nodes[0]);
         const b = geometry.positions.get(port.nodes[1]);
         if (a === undefined || b === undefined) return null;
@@ -260,7 +274,7 @@ export function BoardView({
       })}
 
       {/* buildings */}
-      {Object.entries(state.buildings).map(([nodeId, building]) => {
+      {Object.entries(buildings).map(([nodeId, building]) => {
         const p = geometry.positions.get(nodeId);
         if (p === undefined) return null;
         const [x, y] = p;
@@ -317,7 +331,7 @@ export function BoardView({
       })}
 
       {showIds &&
-        Object.keys(state.board.nodes).map((nodeId) => {
+        Object.keys(board.nodes).map((nodeId) => {
           const p = geometry.positions.get(nodeId);
           if (p === undefined) return null;
           return (

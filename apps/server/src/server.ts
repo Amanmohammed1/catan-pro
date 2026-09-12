@@ -44,7 +44,15 @@ interface Session {
   recent: number[];
 }
 
-const MAX_MESSAGES_PER_SECOND = 30;
+/**
+ * Flood control, per socket.
+ *
+ * Generous by design: a person clicking as fast as they can manage sends a
+ * handful of messages a second, so this only ever catches a runaway client or a
+ * deliberate flood. Set it too low and a legitimate burst — placing two free
+ * roads, then building — gets refused, which looks like the game is broken.
+ */
+const MAX_MESSAGES_PER_SECOND = 120;
 
 export class GameServer {
   private readonly app: FastifyInstance;

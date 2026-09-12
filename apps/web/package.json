@@ -13,7 +13,8 @@
     "@hexport/engine": "workspace:*",
     "@hexport/scenarios": "workspace:*",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "@hexport/protocol": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "19.3.0",

@@ -1,52 +1,58 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   RESOURCE_KINDS,
-  canOfferTrade,
   emptyResources,
-  portRatesFor,
-  publicVictoryPoints,
   totalResources,
-  victoryPoints,
   type Action,
   type EdgeId,
-  type GameState,
   type NodeId,
   type PlayerId,
   type ResourceCounts,
   type TileId,
 } from "@hexport/engine";
+import type { WireView } from "@hexport/protocol";
 import { BoardView } from "./BoardView.js";
 import { describeEvent } from "./describeEvent.js";
-import { useGame } from "./useGame.js";
+import {
+  canOffer,
+  describePrompt,
+  playerNames,
+  portRates,
+  seatColors,
+  type GameSession,
+} from "./session.js";
 
 /**
- * Hot-seat game screen.
+ * The game screen.
  *
- * Every enabled control below is derived from legalMoves(); nothing here decides
- * whether a move is allowed (CLAUDE.md golden rule 3). If a button is missing,
- * the engine says the move is illegal, and that is the bug to fix.
+ * Every control is derived from `view.legalMoves`. Nothing here decides whether
+ * a move is allowed (CLAUDE.md golden rule 3) — online, the list is computed by
+ * the server; hot-seat, by the engine locally. If a button is missing, the rules
+ * say the move is illegal, and that is the bug to fix.
  */
 
 type BuildMode = "none" | "road" | "settlement" | "city";
 
-export function GameView(): React.JSX.Element {
-  const params = new URLSearchParams(window.location.search);
-  const initialSeed = params.get("seed") ?? "hexport";
-  const initialPlayers = Number(params.get("players") ?? "4");
-
-  const game = useGame({
-    seed: initialSeed,
-    players: Number.isFinite(initialPlayers) ? initialPlayers : 4,
-  });
-  const { state, moves, activePlayer, dispatch } = game;
-
+export function GameScreen({
+  session,
+}: {
+  readonly session: GameSession;
+}): React.JSX.Element {
+  const { board, view, log, dispatch } = session;
   const [mode, setMode] = useState<BuildMode>("none");
-  const [showIds, setShowIds] = useState(false);
   const [discard, setDiscard] = useState<ResourceCounts>(emptyResources());
+  const [showIds, setShowIds] = useState(false);
 
-  const phase = state.phase;
+  const names = useMemo(() => playerNames(view), [view]);
+  const colors = useMemo(() => seatColors(view), [view]);
+  const moves = view.legalMoves;
+  const phase = view.phase;
 
-  /** Legal targets, grouped by what the player would be clicking. */
+  // A build mode is meaningless once the phase moves on.
+  useEffect(() => {
+    setMode("none");
+  }, [phase.k, view.currentPlayer]);
+
   const targets = useMemo(() => {
     const nodes = new Map<NodeId, Action>();
     const edges = new Map<EdgeId, Action>();
@@ -56,8 +62,6 @@ export function GameView(): React.JSX.Element {
       switch (move.t) {
         case "setupSettlement":
         case "buildSettlement":
-          nodes.set(move.node, move);
-          break;
         case "buildCity":
           nodes.set(move.node, move);
           break;
@@ -75,67 +79,42 @@ export function GameView(): React.JSX.Element {
     return { nodes, edges, tiles };
   }, [moves]);
 
-  /** Which of those the board should actually highlight right now. */
   const active = useMemo(() => {
-    const emptyNodes = new Set<NodeId>();
-    const emptyEdges = new Set<EdgeId>();
-    const emptyTiles = new Set<TileId>();
+    const none = {
+      nodes: new Set<NodeId>(),
+      edges: new Set<EdgeId>(),
+      tiles: new Set<TileId>(),
+    };
 
     if (phase.k === "setup") {
       return phase.sub === "settlement"
-        ? { nodes: new Set(targets.nodes.keys()), edges: emptyEdges, tiles: emptyTiles }
-        : {
-            nodes: emptyNodes,
-            edges: new Set(targets.edges.keys()),
-            tiles: emptyTiles,
-          };
+        ? { ...none, nodes: new Set(targets.nodes.keys()) }
+        : { ...none, edges: new Set(targets.edges.keys()) };
     }
-
     if (phase.k === "moveRobber") {
-      return {
-        nodes: emptyNodes,
-        edges: emptyEdges,
-        tiles: new Set(targets.tiles.keys()),
-      };
+      return { ...none, tiles: new Set(targets.tiles.keys()) };
     }
-
     if (phase.k === "roadBuilding") {
-      return {
-        nodes: emptyNodes,
-        edges: new Set(targets.edges.keys()),
-        tiles: emptyTiles,
-      };
+      return { ...none, edges: new Set(targets.edges.keys()) };
     }
 
     switch (mode) {
       case "road":
-        return {
-          nodes: emptyNodes,
-          edges: new Set(targets.edges.keys()),
-          tiles: emptyTiles,
-        };
+        return { ...none, edges: new Set(targets.edges.keys()) };
       case "settlement":
         return {
+          ...none,
           nodes: new Set(
-            moves
-              .filter((m) => m.t === "buildSettlement")
-              .map((m) => (m.t === "buildSettlement" ? m.node : "")),
+            moves.flatMap((m) => (m.t === "buildSettlement" ? [m.node] : [])),
           ),
-          edges: emptyEdges,
-          tiles: emptyTiles,
         };
       case "city":
         return {
-          nodes: new Set(
-            moves
-              .filter((m) => m.t === "buildCity")
-              .map((m) => (m.t === "buildCity" ? m.node : "")),
-          ),
-          edges: emptyEdges,
-          tiles: emptyTiles,
+          ...none,
+          nodes: new Set(moves.flatMap((m) => (m.t === "buildCity" ? [m.node] : []))),
         };
       default:
-        return { nodes: emptyNodes, edges: emptyEdges, tiles: emptyTiles };
+        return none;
     }
   }, [phase, mode, targets, moves]);
 
@@ -149,35 +128,34 @@ export function GameView(): React.JSX.Element {
   const find = (kind: Action["t"]): Action | undefined =>
     moves.find((m) => m.t === kind);
 
-  const seat = state.players[activePlayer];
-  const prompt = describePrompt(state, activePlayer);
+  const yourTurn = view.currentPlayer === view.you;
+  const waiting = moves.length > 0;
 
   return (
     <div className="game-root">
       <aside className="side left">
-        <h1>hexport</h1>
-        <p className="sub">Hot-seat. Base game rules.</p>
+        <TableHeader session={session} />
 
         <div className="players">
-          {state.players.map((p) => {
-            const isTurn = p.id === state.currentPlayer;
-            const waiting = game.waitingOn.includes(p.id);
+          {view.players.map((p) => {
+            const isTurn = p.id === view.currentPlayer;
             return (
-              <div
-                key={p.id}
-                className={`player${isTurn ? " turn" : ""}${waiting ? " waiting" : ""}`}
-              >
+              <div key={p.id} className={`player${isTurn ? " turn" : ""}`}>
                 <span className="swatch" style={{ background: p.color }} />
-                <span className="pname">{p.name}</span>
-                <span className="pstat">{publicVictoryPoints(state, p.id)} vp</span>
-                <span className="pstat dim">{totalResources(p.resources)} cards</span>
-                <span className="pstat dim">
-                  {p.devCards.filter((c) => !c.played).length} dev
+                <span className="pname">
+                  {p.name}
+                  {p.id === view.you ? " (you)" : ""}
                 </span>
-                {state.longestRoad.player === p.id && (
+                <span className="pstat">{p.publicPoints} vp</span>
+                <span className="pstat dim">{p.handSize} cards</span>
+                <span className="pstat dim">{p.devCardCount} dev</span>
+                {p.knightsPlayed > 0 && (
+                  <span className="pstat dim">{p.knightsPlayed} kt</span>
+                )}
+                {view.longestRoad.player === p.id && (
                   <span className="badge">road</span>
                 )}
-                {state.largestArmy.player === p.id && (
+                {view.largestArmy.player === p.id && (
                   <span className="badge">army</span>
                 )}
               </div>
@@ -186,14 +164,15 @@ export function GameView(): React.JSX.Element {
         </div>
 
         <div className="log">
-          {game.log
-            .slice(-60)
+          {log
+            .slice(-80)
+            .map((event, i) => ({ event, i }))
             .reverse()
-            .map((entry) => {
-              const text = describeEvent(entry.event, state);
+            .map(({ event, i }) => {
+              const text = describeEvent(event, names);
               if (text === "") return null;
               return (
-                <div key={entry.id} className="log-line">
+                <div key={`${String(i)}-${event.e}`} className="log-line">
                   {text}
                 </div>
               );
@@ -203,7 +182,11 @@ export function GameView(): React.JSX.Element {
 
       <main className="stage">
         <BoardView
-          state={state}
+          board={board}
+          roads={view.roads}
+          buildings={view.buildings}
+          robber={view.robber}
+          colors={colors}
           highlightNodes={active.nodes}
           highlightEdges={active.edges}
           highlightTiles={active.tiles}
@@ -221,58 +204,67 @@ export function GameView(): React.JSX.Element {
       </main>
 
       <aside className="side right">
-        {state.winner !== null ? (
-          <div className="winner">
-            <h2>{state.players[state.winner]?.name} wins</h2>
-            <p>{victoryPoints(state, state.winner)} victory points</p>
-            <button
-              onClick={() => {
-                game.reset(
-                  `${initialSeed}-${String(Date.now())}`,
-                  state.players.length,
-                );
-              }}
-            >
-              New game
-            </button>
-          </div>
+        {view.winner !== null ? (
+          <Winner session={session} />
         ) : (
           <>
-            <div className="turn-banner" style={{ borderColor: seat?.color }}>
-              <strong>{seat?.name}</strong>
-              <span>{prompt}</span>
-              {state.dice !== null && (
+            <div
+              className="turn-banner"
+              style={{ borderColor: colors[view.currentPlayer] }}
+            >
+              <strong>
+                {session.hotSeat
+                  ? names[view.currentPlayer]
+                  : yourTurn
+                    ? "Your turn"
+                    : `${names[view.currentPlayer] ?? "Someone"}'s turn`}
+              </strong>
+              <span>{describePrompt(view, view.you)}</span>
+              {view.dice !== null && (
                 <span className="dice">
-                  {state.dice[0]} + {state.dice[1]} = {state.dice[0] + state.dice[1]}
+                  {view.dice[0]} + {view.dice[1]} = {view.dice[0] + view.dice[1]}
                 </span>
+              )}
+              {session.deadline != null && waiting && (
+                <Countdown deadline={session.deadline} />
               )}
             </div>
 
-            {seat !== undefined && (
-              <div className="hand">
-                {RESOURCE_KINDS.map((kind) => (
-                  <div key={kind} className={`card ${kind}`}>
-                    <span className="kind">{kind}</span>
-                    <span className="count">{seat.resources[kind]}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="hand">
+              {RESOURCE_KINDS.map((kind) => (
+                <div key={kind} className={`card ${kind}`}>
+                  <span className="kind">{kind}</span>
+                  <span className="count">{view.self.resources[kind]}</span>
+                </div>
+              ))}
+            </div>
+
+            <DevCardHand view={view} />
+
+            {!waiting && (
+              <p className="hint waiting">
+                Waiting for {names[view.currentPlayer] ?? "another player"}…
+              </p>
             )}
 
-            {phase.k === "discard" && seat !== undefined && (
+            {phase.k === "discard" && waiting && (
               <DiscardPanel
-                hand={seat.resources}
+                hand={view.self.resources}
                 selection={discard}
-                required={Math.floor(totalResources(seat.resources) / 2)}
+                required={Math.floor(totalResources(view.self.resources) / 2)}
                 onChange={setDiscard}
                 onConfirm={() => {
-                  dispatch({ t: "discard", player: activePlayer, resources: discard });
+                  dispatch({
+                    t: "discard",
+                    player: view.you,
+                    resources: discard,
+                  });
                   setDiscard(emptyResources());
                 }}
               />
             )}
 
-            {phase.k === "steal" && (
+            {phase.k === "steal" && waiting && (
               <div className="actions">
                 <h3>Steal from</h3>
                 {phase.targets.length === 0 ? (
@@ -280,19 +272,17 @@ export function GameView(): React.JSX.Element {
                     No one to rob — continue
                   </button>
                 ) : (
-                  phase.targets.map((target) => (
+                  phase.targets.map((target: PlayerId) => (
                     <button
                       key={target}
                       onClick={() => {
-                        dispatch({ t: "steal", player: activePlayer, target });
+                        dispatch({ t: "steal", player: view.you, target });
                       }}
                     >
-                      {state.players[target]?.name}
-                      {" ("}
-                      {totalResources(
-                        state.players[target]?.resources ?? emptyResources(),
-                      )}
-                      {" cards)"}
+                      <span>{names[target]}</span>
+                      <span className="cost">
+                        {view.players[target]?.handSize ?? 0} cards
+                      </span>
                     </button>
                   ))
                 )}
@@ -300,10 +290,10 @@ export function GameView(): React.JSX.Element {
             )}
 
             {phase.k === "tradeOffer" && (
-              <TradePanel state={state} moves={moves} onAction={play} />
+              <TradePanel view={view} names={names} moves={moves} onAction={play} />
             )}
 
-            {phase.k === "roll" && (
+            {phase.k === "roll" && waiting && (
               <div className="actions">
                 <button className="primary" onClick={() => play(find("rollDice"))}>
                   Roll dice
@@ -312,7 +302,7 @@ export function GameView(): React.JSX.Element {
               </div>
             )}
 
-            {phase.k === "main" && (
+            {phase.k === "main" && waiting && (
               <div className="actions">
                 <h3>Build</h3>
                 <button
@@ -322,7 +312,8 @@ export function GameView(): React.JSX.Element {
                     setMode(mode === "road" ? "none" : "road");
                   }}
                 >
-                  Road <span className="cost">1 brick 1 lumber</span>
+                  <span>Road</span>
+                  <span className="cost">1 brick 1 lumber</span>
                 </button>
                 <button
                   disabled={!has("buildSettlement")}
@@ -331,7 +322,7 @@ export function GameView(): React.JSX.Element {
                     setMode(mode === "settlement" ? "none" : "settlement");
                   }}
                 >
-                  Settlement{" "}
+                  <span>Settlement</span>
                   <span className="cost">1 brick 1 lumber 1 wool 1 grain</span>
                 </button>
                 <button
@@ -341,22 +332,27 @@ export function GameView(): React.JSX.Element {
                     setMode(mode === "city" ? "none" : "city");
                   }}
                 >
-                  City <span className="cost">3 ore 2 grain</span>
+                  <span>City</span>
+                  <span className="cost">3 ore 2 grain</span>
                 </button>
                 <button
                   disabled={!has("buyDevCard")}
                   onClick={() => play(find("buyDevCard"))}
                 >
-                  Development card <span className="cost">1 ore 1 wool 1 grain</span>
+                  <span>Development card</span>
+                  <span className="cost">
+                    1 ore 1 wool 1 grain · {view.devDeckSize} left
+                  </span>
                 </button>
 
                 <DevCardButtons moves={moves} onAction={play} />
-
-                <BankTradePanel state={state} moves={moves} onAction={play} />
-
-                {canOfferTrade(state, activePlayer) && (
-                  <OfferTradePanel activePlayer={activePlayer} onAction={play} />
-                )}
+                <BankTradePanel
+                  board={board}
+                  view={view}
+                  moves={moves}
+                  onAction={play}
+                />
+                {canOffer(view) && <OfferTradePanel you={view.you} onAction={play} />}
 
                 <button className="primary end" onClick={() => play(find("endTurn"))}>
                   End turn
@@ -364,11 +360,12 @@ export function GameView(): React.JSX.Element {
               </div>
             )}
 
-            {phase.k === "roadBuilding" && (
+            {phase.k === "roadBuilding" && waiting && (
               <div className="actions">
                 <h3>Road Building</h3>
                 <p className="hint">
-                  Place {phase.remaining} free road{phase.remaining === 1 ? "" : "s"}.
+                  Place {phase.remaining} free road
+                  {phase.remaining === 1 ? "" : "s"}.
                 </p>
                 {!has("buildRoad") && (
                   <button onClick={() => play(find("endRoadBuilding"))}>
@@ -378,6 +375,10 @@ export function GameView(): React.JSX.Element {
               </div>
             )}
           </>
+        )}
+
+        {session.onChat !== undefined && (
+          <ChatPanel chat={session.chat ?? []} onSend={session.onChat} />
         )}
 
         <label className="check">
@@ -391,9 +392,9 @@ export function GameView(): React.JSX.Element {
           Show ids
         </label>
 
-        {game.error !== null && (
-          <div className="error" onClick={game.dismissError}>
-            {game.error}
+        {session.error !== null && (
+          <div className="error" onClick={session.dismissError}>
+            {session.error}
           </div>
         )}
       </aside>
@@ -401,33 +402,73 @@ export function GameView(): React.JSX.Element {
   );
 }
 
-function describePrompt(state: GameState, player: PlayerId): string {
-  switch (state.phase.k) {
-    case "setup":
-      return state.phase.sub === "settlement"
-        ? `Place settlement ${String(state.phase.round)} of 2`
-        : "Place an adjoining road";
-    case "roll":
-      return "Roll the dice";
-    case "discard":
-      return "Discard half your hand";
-    case "moveRobber":
-      return "Move the robber";
-    case "steal":
-      return "Choose someone to rob";
-    case "main":
-      return "Trade and build";
-    case "roadBuilding":
-      return "Place your free roads";
-    case "tradeOffer":
-      return state.phase.offer.from === player
-        ? "Waiting for answers"
-        : "Answer the trade offer";
-    case "gameOver":
-      return "Game over";
-    default:
-      return "";
+function TableHeader({
+  session,
+}: {
+  readonly session: GameSession;
+}): React.JSX.Element {
+  return (
+    <>
+      <h1>hexport</h1>
+      <p className="sub">
+        {session.hotSeat ? "Hot-seat. Base game." : "Online. Base game."}
+      </p>
+    </>
+  );
+}
+
+function Winner({ session }: { readonly session: GameSession }): React.JSX.Element {
+  const { view } = session;
+  const winner = view.winner;
+  if (winner === null) return <></>;
+  const name = view.players[winner]?.name ?? "Someone";
+
+  return (
+    <div className="winner">
+      <h2>{name} wins</h2>
+      <p>{view.players[winner]?.publicPoints ?? 0}+ victory points</p>
+    </div>
+  );
+}
+
+/** Shows how long is left before the turn timer auto-passes. */
+function Countdown({ deadline }: { readonly deadline: number }): React.JSX.Element {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const handle = window.setInterval(() => {
+      setNow(Date.now());
+    }, 500);
+    return () => {
+      window.clearInterval(handle);
+    };
+  }, []);
+
+  const left = Math.max(0, Math.ceil((deadline - now) / 1000));
+  return <span className={left <= 10 ? "timer urgent" : "timer"}>{left}s</span>;
+}
+
+function DevCardHand({ view }: { readonly view: WireView }): React.JSX.Element | null {
+  if (view.self.devCards.length === 0) return null;
+
+  const counts = new Map<string, { total: number; playable: number }>();
+  for (const card of view.self.devCards) {
+    if (card.played) continue;
+    const entry = counts.get(card.kind) ?? { total: 0, playable: 0 };
+    entry.total += 1;
+    if (card.playable) entry.playable += 1;
+    counts.set(card.kind, entry);
   }
+  if (counts.size === 0) return null;
+
+  return (
+    <div className="devhand">
+      {[...counts.entries()].map(([kind, entry]) => (
+        <span key={kind} className={entry.playable > 0 ? "dev ready" : "dev"}>
+          {kind} ×{entry.total}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 function DevCardButtons({
@@ -453,7 +494,7 @@ function DevCardButtons({
 
   return (
     <>
-      <h3>Development cards</h3>
+      <h3>Play a card</h3>
       {knight !== undefined && <button onClick={() => onAction(knight)}>Knight</button>}
       {roads !== undefined && (
         <button onClick={() => onAction(roads)}>Road Building</button>
@@ -491,22 +532,23 @@ function DevCardButtons({
 }
 
 function BankTradePanel({
-  state,
+  board,
+  view,
   moves,
   onAction,
 }: {
-  readonly state: GameState;
+  readonly board: GameSession["board"];
+  readonly view: WireView;
   readonly moves: readonly Action[];
   readonly onAction: (a: Action | undefined) => void;
 }): React.JSX.Element | null {
   const trades = moves.filter((m) => m.t === "bankTrade");
   if (trades.length === 0) return null;
-
-  const rates = portRatesFor(state, state.currentPlayer);
+  const rates = portRates(board, view);
 
   return (
     <details className="trade">
-      <summary>Bank / harbor trade</summary>
+      <summary>Bank / harbour trade</summary>
       <div className="rates">
         {RESOURCE_KINDS.map((kind) => (
           <span key={kind}>
@@ -528,10 +570,10 @@ function BankTradePanel({
 }
 
 function OfferTradePanel({
-  activePlayer,
+  you,
   onAction,
 }: {
-  readonly activePlayer: PlayerId;
+  readonly you: PlayerId;
   readonly onAction: (a: Action | undefined) => void;
 }): React.JSX.Element {
   const [give, setGive] = useState<ResourceCounts>(emptyResources());
@@ -545,7 +587,7 @@ function OfferTradePanel({
       <button
         disabled={totalResources(give) === 0 || totalResources(receive) === 0}
         onClick={() => {
-          onAction({ t: "offerTrade", player: activePlayer, give, receive });
+          onAction({ t: "offerTrade", player: you, give, receive });
           setGive(emptyResources());
           setReceive(emptyResources());
         }}
@@ -557,25 +599,26 @@ function OfferTradePanel({
 }
 
 function TradePanel({
-  state,
+  view,
+  names,
   moves,
   onAction,
 }: {
-  readonly state: GameState;
+  readonly view: WireView;
+  readonly names: readonly string[];
   readonly moves: readonly Action[];
   readonly onAction: (a: Action | undefined) => void;
 }): React.JSX.Element {
-  if (state.phase.k !== "tradeOffer") return <></>;
-  const offer = state.phase.offer;
+  if (view.phase.k !== "tradeOffer") return <></>;
+  const offer = view.phase.offer;
 
   return (
     <div className="actions">
       <h3>Trade offer</h3>
       <p className="hint">
-        {state.players[offer.from]?.name} gives {summarise(offer.give)} for{" "}
-        {summarise(offer.receive)}
+        {names[offer.from]} gives {summarise(offer.give)} for {summarise(offer.receive)}
       </p>
-
+      {moves.length === 0 && <p className="hint">Waiting…</p>}
       {moves.map((m, i) => {
         if (m.t === "respondTrade") {
           return (
@@ -587,7 +630,7 @@ function TradePanel({
         if (m.t === "confirmTrade") {
           return (
             <button key={`c${String(i)}`} onClick={() => onAction(m)}>
-              Trade with {state.players[m.with]?.name}
+              Trade with {names[m.with]}
             </button>
           );
         }
@@ -689,6 +732,46 @@ function DiscardPanel({
         Discard
       </button>
     </div>
+  );
+}
+
+function ChatPanel({
+  chat,
+  onSend,
+}: {
+  readonly chat: readonly { from: string; text: string; at: number }[];
+  readonly onSend: (text: string) => void;
+}): React.JSX.Element {
+  const [draft, setDraft] = useState("");
+
+  return (
+    <details className="trade chat">
+      <summary>Chat</summary>
+      <div className="chat-log">
+        {chat.slice(-30).map((line, i) => (
+          <div key={`${String(line.at)}-${String(i)}`}>
+            <strong>{line.from}:</strong> {line.text}
+          </div>
+        ))}
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const text = draft.trim();
+          if (text === "") return;
+          onSend(text);
+          setDraft("");
+        }}
+      >
+        <input
+          value={draft}
+          placeholder="Say something"
+          onChange={(e) => {
+            setDraft(e.target.value);
+          }}
+        />
+      </form>
+    </details>
   );
 }
 

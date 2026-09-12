@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
 import { it } from "vitest";
+import { writeFileSync } from "node:fs";
+import { act } from "react";
+import { completeSetupInUi, drive, mountGame, text } from "./uiDriver.js";
+
 /**
  * Dev tool, not a test. Renders the board to an SVG file so a change to the
  * renderer can be looked at rather than only asserted on:
@@ -8,136 +12,22 @@ import { it } from "vitest";
  *
  * With the variable unset it returns immediately, so normal runs pay nothing.
  */
-import { writeFileSync } from "node:fs";
-import { act } from "react";
-import { createRoot } from "react-dom/client";
-import { GameView } from "./GameView.js";
 
 const OUT = process.env["HEXPORT_SNAPSHOT_DIR"] ?? "";
 
 it("dumps the board svg for visual review", () => {
   if (OUT === "") return;
 
-  window.history.replaceState({}, "", "/?seed=shot&players=4");
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-  act(() => {
-    root.render(<GameView />);
-  });
-
-  const click = (el: Element | null): void => {
-    if (el === null) return;
-    act(() => {
-      el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-  };
-  const button = (label: string): HTMLButtonElement | undefined =>
-    [...container.querySelectorAll("button")].find((b) =>
-      (b.textContent ?? "").toLowerCase().includes(label.toLowerCase()),
-    );
-  const text = (): string => container.textContent ?? "";
-
-  // Setup.
-  for (let i = 0; i < 40; i++) {
-    const node = container.querySelector(".node-target");
-    const edge = container.querySelector(".edge-target");
-    if (node !== null) {
-      click(node);
-      continue;
-    }
-    if (edge !== null) {
-      click(edge);
-      continue;
-    }
-    break;
-  }
+  const { el, root } = mountGame("shot", 4);
+  completeSetupInUi(el);
 
   // Play a while so the board has roads, settlements and a city on it.
-  const tryBuild = (label: string): boolean => {
-    const b = button(label);
-    if (b === undefined || b.disabled) return false;
-    click(b);
-    const target = container.querySelector(".node-target, .edge-target");
-    if (target === null) {
-      click(b);
-      return false;
-    }
-    click(target);
-    return true;
-  };
-
   for (let step = 0; step < 4000; step++) {
-    if (text().includes("wins")) break;
-    const roll = button("Roll dice");
-    if (roll !== undefined) {
-      click(roll);
-      continue;
-    }
-    if (text().includes("Discard")) {
-      const confirm = container.querySelector<HTMLButtonElement>(
-        ".actions button.primary",
-      );
-      if (confirm !== null && !confirm.disabled) {
-        click(confirm);
-        continue;
-      }
-      const plus = [...container.querySelectorAll(".picker-row button")].find(
-        (b) => b.textContent === "+" && !(b as HTMLButtonElement).disabled,
-      );
-      if (plus !== undefined) {
-        click(plus);
-        continue;
-      }
-    }
-    const tile = container.querySelector(".tile.targetable");
-    if (tile !== null) {
-      click(tile);
-      continue;
-    }
-    if (text().includes("Choose someone to rob")) {
-      const steal = container.querySelector(".actions button");
-      if (steal !== null) {
-        click(steal);
-        continue;
-      }
-    }
-    if (text().includes("free road")) {
-      const edge = container.querySelector(".edge-target");
-      if (edge !== null) {
-        click(edge);
-        continue;
-      }
-      const cont = button("continue");
-      if (cont !== undefined) {
-        click(cont);
-        continue;
-      }
-    }
-    if (text().includes("Trade and build")) {
-      if (step > 300 && tryBuild("City")) continue;
-      if (tryBuild("Settlement")) continue;
-      if (tryBuild("Road")) continue;
-      const end = button("End turn");
-      if (end !== undefined) {
-        click(end);
-        continue;
-      }
-    }
-    const end = button("End turn");
-    if (end !== undefined) {
-      click(end);
-      continue;
-    }
-    const cont = button("continue");
-    if (cont !== undefined) {
-      click(cont);
-      continue;
-    }
-    break;
+    if (text(el).includes("wins")) break;
+    if (!drive(el)) break;
   }
 
-  const svg = container.querySelector("svg.board");
+  const svg = el.querySelector("svg.board");
   if (svg === null) throw new Error("no board");
   svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   svg.setAttribute("width", "900");
@@ -161,5 +51,5 @@ it("dumps the board svg for visual review", () => {
   act(() => {
     root.unmount();
   });
-  container.remove();
+  el.remove();
 }, 120000);

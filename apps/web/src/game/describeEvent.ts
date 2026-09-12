@@ -1,15 +1,18 @@
-import type { GameEvent, GameState } from "@hexport/engine";
+import type { GameEvent } from "@hexport/engine";
 
 /**
  * Turn an event into a line of game log.
+ *
+ * Takes only the player names, so the same formatter works from a redacted
+ * view. An event whose secret has been stripped reads as "a card", which is
+ * exactly what a bystander should see.
  *
  * The log is driven entirely by the event stream (CLAUDE.md golden rule 6), so
  * it stays correct for replays and, from M2, for a player who reconnects and
  * replays the log rather than receiving a snapshot.
  */
-export function describeEvent(event: GameEvent, state: GameState): string {
-  const name = (id: number): string =>
-    state.players[id]?.name ?? `Player ${String(id + 1)}`;
+export function describeEvent(event: GameEvent, names: readonly string[]): string {
+  const name = (id: number): string => names[id] ?? `Player ${String(id + 1)}`;
 
   switch (event.e) {
     case "gameStarted":
@@ -47,7 +50,9 @@ export function describeEvent(event: GameEvent, state: GameState): string {
     case "robberMoved":
       return `${name(event.player)} moved the robber`;
     case "cardStolen":
-      return `${name(event.to)} stole a card from ${name(event.from)}`;
+      return event.resource === null
+        ? `${name(event.to)} stole a card from ${name(event.from)}`
+        : `${name(event.to)} stole ${event.resource} from ${name(event.from)}`;
     case "stealSkipped":
       return `${name(event.player)} stole nothing`;
     case "builtRoad":
@@ -57,7 +62,9 @@ export function describeEvent(event: GameEvent, state: GameState): string {
     case "builtCity":
       return `${name(event.player)} upgraded to a city`;
     case "devCardBought":
-      return `${name(event.player)} bought a development card (${String(event.remaining)} left)`;
+      return event.kind === null
+        ? `${name(event.player)} bought a development card (${String(event.remaining)} left)`
+        : `${name(event.player)} bought ${event.kind} (${String(event.remaining)} left)`;
     case "devCardPlayed":
       return `${name(event.player)} played ${event.kind}`;
     case "yearOfPlentyTaken":

@@ -2,11 +2,13 @@
 import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { GameView } from "./GameView.js";
+import { HotSeatGame } from "./HotSeatGame.js";
+import { button, click, completeSetupInUi, drive, text } from "./uiDriver.js";
 
 /**
  * The M1 acceptance criterion is a full hot-seat game played in this UI without
- * a rules dispute. Engine tests prove the rules; these prove the screen actually
+ * a rules dispute. Since M2 the same screen renders online play, driven by a
+ * redacted view instead of a local GameState, so these also cover that path. Engine tests prove the rules; these prove the screen actually
  * exposes them — that the right controls appear in each phase, that clicking a
  * highlighted spot places a piece, and that a game can be driven to a winner
  * through the DOM alone.
@@ -16,32 +18,18 @@ let root: Root | null = null;
 let container: HTMLDivElement | null = null;
 
 function render(search = "?seed=ui-test&players=3"): HTMLDivElement {
-  window.history.replaceState({}, "", `/${search}`);
+  const params = new URLSearchParams(search);
+  const seed = params.get("seed") ?? "ui-test";
+  const players = Number(params.get("players") ?? "3");
+
   container = document.createElement("div");
   document.body.appendChild(container);
   const created = createRoot(container);
   root = created;
   act(() => {
-    created.render(<GameView />);
+    created.render(<HotSeatGame seed={seed} players={players} />);
   });
   return container;
-}
-
-function click(el: Element | null | undefined): void {
-  if (el == null) throw new Error("nothing to click");
-  act(() => {
-    el.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-  });
-}
-
-function button(el: HTMLElement, label: string): HTMLButtonElement | undefined {
-  return [...el.querySelectorAll("button")].find((b) =>
-    (b.textContent ?? "").toLowerCase().includes(label.toLowerCase()),
-  );
-}
-
-function text(el: HTMLElement): string {
-  return el.textContent ?? "";
 }
 
 beforeEach(() => {
@@ -100,24 +88,6 @@ describe("placing pieces", () => {
     expect(text(el)).toContain("Player 2");
   });
 });
-
-/** Drive the whole setup phase by clicking the first highlighted target. */
-function completeSetupInUi(el: HTMLElement): void {
-  for (let i = 0; i < 40; i++) {
-    const node = el.querySelector(".node-target");
-    const edge = el.querySelector(".edge-target");
-    if (node !== null) {
-      click(node);
-      continue;
-    }
-    if (edge !== null) {
-      click(edge);
-      continue;
-    }
-    return;
-  }
-  throw new Error("setup did not finish");
-}
 
 describe("after setup", () => {
   it("offers the roll button", () => {
@@ -189,121 +159,23 @@ describe("the build controls follow legalMoves", () => {
   });
 });
 
-describe("a complete game", () => {
-  it("can be played to a winner entirely through the UI", () => {
-    const el = render("?seed=ui-full&players=3");
+describe("several turns", () => {
+  it("keeps offering usable controls turn after turn", () => {
+    const el = render("?seed=ui-turns&players=3");
     completeSetupInUi(el);
 
-    /**
-     * Drive the game through the DOM only, preferring to build whenever a build
-     * button is enabled. This is the UI equivalent of the random-legal bot: if
-     * any phase fails to expose a usable control the loop throws, and if the
-     * build controls are wired up wrong nobody ever scores and the test fails
-     * on the step budget instead.
-     */
-    const tryBuild = (label: string): boolean => {
-      const b = button(el, label);
-      if (b === undefined || b.disabled) return false;
-      click(b);
-      const target = el.querySelector(".node-target, .edge-target");
-      if (target === null) {
-        click(b); // nothing highlighted; switch the mode back off
-        return false;
-      }
-      click(target);
-      return true;
-    };
-
-    let steps = 0;
-    for (; steps < 20000; steps++) {
+    // Not a full game — that runs in the slow lane. This checks the screen
+    // never gets into a state with nothing to click, which is the failure mode
+    // that would strand a real player.
+    for (let step = 0; step < 400; step++) {
       if (text(el).includes("wins")) break;
-
-      const roll = button(el, "Roll dice");
-      if (roll !== undefined) {
-        click(roll);
-        continue;
-      }
-
-      if (text(el).includes("Discard")) {
-        const confirm = el.querySelector<HTMLButtonElement>(".actions button.primary");
-        if (confirm !== null && !confirm.disabled) {
-          click(confirm);
-          continue;
-        }
-        const plus = [...el.querySelectorAll(".picker-row button")].find(
-          (b) => b.textContent === "+" && !(b as HTMLButtonElement).disabled,
-        );
-        if (plus !== undefined) {
-          click(plus);
-          continue;
-        }
-      }
-
-      const tile = el.querySelector(".tile.targetable");
-      if (tile !== null) {
-        click(tile);
-        continue;
-      }
-
-      if (text(el).includes("Choose someone to rob")) {
-        const steal = el.querySelector(".actions button");
-        if (steal !== null) {
-          click(steal);
-          continue;
-        }
-      }
-
-      if (text(el).includes("free road")) {
-        const edge = el.querySelector(".edge-target");
-        if (edge !== null) {
-          click(edge);
-          continue;
-        }
-        const cont = button(el, "continue");
-        if (cont !== undefined) {
-          click(cont);
-          continue;
-        }
-      }
-
-      if (text(el).includes("Trade and build")) {
-        // Cities first: they are the fastest route to ten points.
-        if (tryBuild("City")) continue;
-        if (tryBuild("Settlement")) continue;
-        if (tryBuild("Road")) continue;
-
-        const dev = button(el, "Development card");
-        if (dev !== undefined && !dev.disabled) {
-          click(dev);
-          continue;
-        }
-
-        const end = button(el, "End turn");
-        if (end !== undefined) {
-          click(end);
-          continue;
-        }
-      }
-
-      const end = button(el, "End turn");
-      if (end !== undefined) {
-        click(end);
-        continue;
-      }
-
-      const cont = button(el, "continue");
-      if (cont !== undefined) {
-        click(cont);
-        continue;
-      }
-
+      if (drive(el)) continue;
       throw new Error(
-        `UI offered no usable control. Screen said: ${text(el).slice(0, 400)}`,
+        `UI offered no usable control. Screen said: ${text(el).slice(0, 300)}`,
       );
     }
 
-    expect(steps).toBeLessThan(20000);
-    expect(text(el)).toContain("wins");
-    expect(el.querySelector(".winner")).not.toBeNull();
-  }, 180000);
+    expect(el.querySelector("svg.board")).not.toBeNull();
+    expect(el.querySelectorAll(".log-line").length).toBeGreaterThan(5);
+  }, 60000);
 });

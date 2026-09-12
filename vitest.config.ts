@@ -3,10 +3,10 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["packages/*/src/**/*.test.ts", "apps/*/src/**/*.test.{ts,tsx}"],
-    // Whole-game integration runs play a match end to end over real sockets and
-    // take about a minute. They are part of `pnpm verify` via `pnpm test:slow`,
-    // just not of the fast lane people run while working.
-    exclude: ["**/node_modules/**", "**/dist/**", "**/.turbo/**", "**/*.slow.test.ts"],
+    // Integration runs that play a whole match over real sockets, or spawn a
+    // server process, live in the slow lane. They are part of `pnpm verify` via
+    // `pnpm test:slow`, just not of the fast lane people run while working.
+    exclude: ["**/node_modules/**", "**/dist/**", "**/.turbo/**", "**/*.slow.test.*"],
     coverage: {
       provider: "v8",
       include: ["packages/*/src/**"],
