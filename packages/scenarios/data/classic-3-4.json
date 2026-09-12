@@ -1,0 +1,250 @@
+{
+  "id": "classic-3-4",
+  "name": "Classic",
+  "schemaVersion": 1,
+  "players": {
+    "min": 3,
+    "max": 4
+  },
+  "victoryPoints": 10,
+  "modules": ["base"],
+  "layout": {
+    "orientation": "pointy"
+  },
+  "cells": [
+    {
+      "coord": [-2, 0],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [-2, 1],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [-2, 2],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [-1, -1],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [-1, 0],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [-1, 1],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [-1, 2],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [0, -2],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [0, -1],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [0, 0],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [0, 1],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [0, 2],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [1, -2],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [1, -1],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [1, 0],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [1, 1],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [2, -2],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [2, -1],
+      "slot": "land",
+      "island": "home"
+    },
+    {
+      "coord": [2, 0],
+      "slot": "land",
+      "island": "home"
+    }
+  ],
+  "bags": {
+    "land": {
+      "terrain": [
+        {
+          "terrain": "forest",
+          "count": 4
+        },
+        {
+          "terrain": "pasture",
+          "count": 4
+        },
+        {
+          "terrain": "field",
+          "count": 4
+        },
+        {
+          "terrain": "hill",
+          "count": 3
+        },
+        {
+          "terrain": "mountain",
+          "count": 3
+        },
+        {
+          "terrain": "desert",
+          "count": 1
+        }
+      ]
+    }
+  },
+  "numbers": {
+    "mode": "path",
+    "sequence": [5, 2, 6, 3, 8, 10, 9, 12, 11, 4, 8, 10, 9, 4, 5, 6, 3, 11],
+    "path": [
+      [-2, 2],
+      [-1, 2],
+      [0, 2],
+      [1, 1],
+      [2, 0],
+      [2, -1],
+      [2, -2],
+      [1, -2],
+      [0, -2],
+      [-1, -1],
+      [-2, 0],
+      [-2, 1],
+      [-1, 1],
+      [0, 1],
+      [1, 0],
+      [1, -1],
+      [0, -1],
+      [-1, 0],
+      [0, 0]
+    ],
+    "skipTerrains": ["desert", "sea"],
+    "constraints": {
+      "noAdjacentRedNumbers": true
+    }
+  },
+  "ports": [
+    {
+      "at": [-2, 0],
+      "edgeDir": 2,
+      "kind": "generic",
+      "ratio": 3
+    },
+    {
+      "at": [0, -2],
+      "edgeDir": 3,
+      "kind": "resource",
+      "resource": "grain",
+      "ratio": 2
+    },
+    {
+      "at": [1, -2],
+      "edgeDir": 1,
+      "kind": "resource",
+      "resource": "ore",
+      "ratio": 2
+    },
+    {
+      "at": [2, -2],
+      "edgeDir": 0,
+      "kind": "generic",
+      "ratio": 3
+    },
+    {
+      "at": [2, 0],
+      "edgeDir": 1,
+      "kind": "resource",
+      "resource": "wool",
+      "ratio": 2
+    },
+    {
+      "at": [1, 1],
+      "edgeDir": 5,
+      "kind": "generic",
+      "ratio": 3
+    },
+    {
+      "at": [0, 2],
+      "edgeDir": 4,
+      "kind": "resource",
+      "resource": "brick",
+      "ratio": 2
+    },
+    {
+      "at": [-2, 2],
+      "edgeDir": 5,
+      "kind": "resource",
+      "resource": "lumber",
+      "ratio": 2
+    },
+    {
+      "at": [-2, 1],
+      "edgeDir": 3,
+      "kind": "generic",
+      "ratio": 3
+    }
+  ],
+  "pieces": {
+    "roads": 15,
+    "settlements": 5,
+    "cities": 4,
+    "ships": 0
+  },
+  "setup": {
+    "mode": "snakeDraft",
+    "rounds": 2,
+    "placeOn": ["land"]
+  },
+  "islands": [
+    {
+      "id": "home",
+      "vpForFirstSettlement": 0
+    }
+  ],
+  "hiddenStacks": [],
+  "startingPieces": []
+}

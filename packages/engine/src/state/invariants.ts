@@ -1,0 +1,197 @@
+/**
+ * Invariants asserted after every reduce in dev builds (CLAUDE.md, "Testing
+ * requirements"): resource conservation, bank never negative, piece stock never
+ * negative, victory points recomputable from scratch.
+ *
+ * These exist to make a rules bug fail loudly during a fuzz run instead of
+ * quietly producing a wrong board three hundred turns later.
+ */
+
+import { BANK_PER_RESOURCE } from "../setup/createGame.js";
+import { publicVictoryPoints, victoryPoints } from "../queries/scores.js";
+import { DEV_DECK_COMPOSITION, RESOURCE_KINDS, type GameState } from "./types.js";
+
+export interface InvariantViolation {
+  readonly rule: string;
+  readonly detail: string;
+}
+
+/** Every broken invariant in this state. Empty means the state is sound. */
+export function checkInvariants(state: GameState): InvariantViolation[] {
+  const problems: InvariantViolation[] = [];
+
+  // ---- the bank -----------------------------------------------------------
+  for (const kind of RESOURCE_KINDS) {
+    if (state.bank[kind] < 0) {
+      problems.push({
+        rule: "bank-non-negative",
+        detail: `bank holds ${String(state.bank[kind])} ${kind}`,
+      });
+    }
+  }
+
+  // ---- resource conservation ---------------------------------------------
+  // Cards only ever move between the bank and player hands, so every resource
+  // type must always total the 19 the game shipped with (p.2).
+  for (const kind of RESOURCE_KINDS) {
+    let total = state.bank[kind];
+    for (const seat of state.players) total += seat.resources[kind];
+    if (total !== BANK_PER_RESOURCE) {
+      problems.push({
+        rule: "resource-conservation",
+        detail: `${kind} totals ${String(total)}, expected ${String(BANK_PER_RESOURCE)}`,
+      });
+    }
+  }
+
+  // ---- player hands -------------------------------------------------------
+  for (const seat of state.players) {
+    for (const kind of RESOURCE_KINDS) {
+      if (seat.resources[kind] < 0) {
+        problems.push({
+          rule: "hand-non-negative",
+          detail: `player ${String(seat.id)} holds ${String(seat.resources[kind])} ${kind}`,
+        });
+      }
+    }
+
+    if (
+      seat.pieces.roads < 0 ||
+      seat.pieces.settlements < 0 ||
+      seat.pieces.cities < 0
+    ) {
+      problems.push({
+        rule: "piece-stock-non-negative",
+        detail: `player ${String(seat.id)} has negative piece stock`,
+      });
+    }
+  }
+
+  // ---- pieces on the board match pieces removed from stock ----------------
+  for (const seat of state.players) {
+    const roadsOnBoard = Object.values(state.roads).filter(
+      (owner) => owner === seat.id,
+    ).length;
+    const buildings = Object.values(state.buildings).filter(
+      (b) => b.player === seat.id,
+    );
+    const settlements = buildings.filter((b) => b.kind === "settlement").length;
+    const cities = buildings.filter((b) => b.kind === "city").length;
+
+    // Rules p.5: 15 roads, 5 settlements, 4 cities. A city returns its
+    // settlement to the supply, so settlements on board plus stock is constant
+    // only when cities are accounted for.
+    if (roadsOnBoard + seat.pieces.roads !== 15) {
+      problems.push({
+        rule: "road-stock",
+        detail: `player ${String(seat.id)}: ${String(roadsOnBoard)} on board + ${String(seat.pieces.roads)} in stock`,
+      });
+    }
+    if (settlements + seat.pieces.settlements !== 5) {
+      problems.push({
+        rule: "settlement-stock",
+        detail: `player ${String(seat.id)}: ${String(settlements)} on board + ${String(seat.pieces.settlements)} in stock`,
+      });
+    }
+    if (cities + seat.pieces.cities !== 4) {
+      problems.push({
+        rule: "city-stock",
+        detail: `player ${String(seat.id)}: ${String(cities)} on board + ${String(seat.pieces.cities)} in stock`,
+      });
+    }
+  }
+
+  // ---- development cards --------------------------------------------------
+  let devTotal = state.devDeck.length;
+  for (const seat of state.players) devTotal += seat.devCards.length;
+  const expectedDev = Object.values(DEV_DECK_COMPOSITION).reduce(
+    (sum, n) => sum + n,
+    0,
+  );
+  if (devTotal !== expectedDev) {
+    problems.push({
+      rule: "dev-card-conservation",
+      detail: `${String(devTotal)} development cards exist, expected ${String(expectedDev)}`,
+    });
+  }
+
+  for (const seat of state.players) {
+    const played = seat.devCards.filter(
+      (card) => card.kind === "knight" && card.played,
+    ).length;
+    if (played !== seat.knightsPlayed) {
+      problems.push({
+        rule: "knight-count",
+        detail: `player ${String(seat.id)} shows ${String(seat.knightsPlayed)} knights but ${String(played)} are marked played`,
+      });
+    }
+  }
+
+  // ---- victory points recomputable ---------------------------------------
+  for (const seat of state.players) {
+    const recomputed = victoryPoints(state, seat.id);
+    if (recomputed < publicVictoryPoints(state, seat.id)) {
+      problems.push({
+        rule: "victory-points",
+        detail: `player ${String(seat.id)} public score exceeds total`,
+      });
+    }
+    if (recomputed < 0) {
+      problems.push({
+        rule: "victory-points",
+        detail: `player ${String(seat.id)} has a negative score`,
+      });
+    }
+  }
+
+  // ---- the robber ---------------------------------------------------------
+  if (state.board.tiles[state.robber] === undefined) {
+    problems.push({
+      rule: "robber-placement",
+      detail: `robber is on ${state.robber}, which is not a hex`,
+    });
+  }
+
+  // ---- one road per path, one building per intersection -------------------
+  for (const edgeId of Object.keys(state.roads)) {
+    if (state.board.edges[edgeId] === undefined) {
+      problems.push({
+        rule: "road-placement",
+        detail: `road on ${edgeId}, which is not an edge`,
+      });
+    }
+  }
+  for (const nodeId of Object.keys(state.buildings)) {
+    if (state.board.nodes[nodeId] === undefined) {
+      problems.push({
+        rule: "building-placement",
+        detail: `building on ${nodeId}, which is not an intersection`,
+      });
+    }
+  }
+
+  // ---- the distance rule holds for every built settlement (p.5) -----------
+  for (const [nodeId] of Object.entries(state.buildings)) {
+    for (const neighbour of state.board.nodes[nodeId]?.nodes ?? []) {
+      if (state.buildings[neighbour] !== undefined) {
+        problems.push({
+          rule: "distance-rule",
+          detail: `buildings on adjacent intersections ${nodeId} and ${neighbour}`,
+        });
+      }
+    }
+  }
+
+  return problems;
+}
+
+/** Throw if any invariant is broken. Used by tests and the fuzz harness. */
+export function assertInvariants(state: GameState, context = ""): void {
+  const problems = checkInvariants(state);
+  if (problems.length === 0) return;
+
+  const lines = problems.map((p) => `  [${p.rule}] ${p.detail}`).join("\n");
+  throw new Error(
+    `Game state invariants broken${context === "" ? "" : ` after ${context}`}:\n${lines}`,
+  );
+}

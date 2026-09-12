@@ -1,0 +1,532 @@
+/* Deliberately plain. This is a developer tool, not the game UI.
+   Tailwind and the real design system arrive with the 3D client in M3. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font:
+    13px/1.45 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  background: #f5f4f0;
+  color: #1a1a1a;
+}
+
+.debug-root {
+  display: flex;
+  min-height: 100vh;
+}
+
+.panel {
+  width: 270px;
+  flex: none;
+  padding: 16px;
+  border-right: 1px solid #d8d5cc;
+  background: #fbfaf7;
+}
+
+.panel h1 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.panel .sub {
+  margin: 4px 0 16px;
+  color: #6b6b6b;
+}
+
+.panel label {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.panel label.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.panel select,
+.panel input[type="text"],
+.panel input:not([type]) {
+  width: 100%;
+  margin-top: 3px;
+  padding: 4px;
+  font: inherit;
+  border: 1px solid #c8c4b8;
+  background: #fff;
+}
+
+.panel .row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.panel button {
+  flex: 1;
+  padding: 5px;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid #c8c4b8;
+  background: #efece4;
+}
+
+.panel button:hover {
+  background: #e4e0d5;
+}
+
+fieldset {
+  margin: 0 0 14px;
+  padding: 8px 10px;
+  border: 1px solid #d8d5cc;
+}
+
+legend {
+  padding: 0 4px;
+  color: #6b6b6b;
+}
+
+.stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1px 8px;
+}
+
+.stats > div {
+  display: contents;
+}
+
+.stats dt {
+  color: #6b6b6b;
+}
+
+.stats dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.hovered {
+  margin-top: 14px;
+  padding: 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: #efece4;
+  border: 1px solid #d8d5cc;
+}
+
+.stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  min-width: 0;
+}
+
+.board {
+  width: 100%;
+  height: calc(100vh - 32px);
+}
+
+.error {
+  max-width: 640px;
+  padding: 12px;
+  white-space: pre-wrap;
+  color: #b00020;
+  background: #fdf0f2;
+  border: 1px solid #f0c0c8;
+}
+
+text {
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+text.token {
+  font-size: 0.3px;
+  font-weight: 700;
+}
+
+text.port {
+  font-size: 0.18px;
+  fill: #b00020;
+  font-weight: 700;
+}
+
+text.tiny {
+  font-size: 0.12px;
+  fill: #333;
+}
+
+/* ------------------------------------------------------------------ */
+/* Game screen                                                         */
+/* ------------------------------------------------------------------ */
+
+.game-root {
+  display: grid;
+  grid-template-columns: 250px 1fr 290px;
+  height: 100vh;
+}
+
+.side {
+  padding: 12px;
+  overflow-y: auto;
+  background: #fbfaf7;
+}
+
+.side.left {
+  border-right: 1px solid #d8d5cc;
+}
+
+.side.right {
+  border-left: 1px solid #d8d5cc;
+}
+
+.side h1 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.side h3 {
+  margin: 14px 0 6px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b6b6b;
+}
+
+.players {
+  margin: 12px 0;
+}
+
+.player {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 5px 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+}
+
+.player.turn {
+  background: #efece4;
+  border-color: #c8c4b8;
+}
+
+.player.waiting .pname {
+  font-weight: 700;
+}
+
+.swatch {
+  width: 11px;
+  height: 11px;
+  border: 1px solid #333;
+  flex: none;
+}
+
+.pname {
+  flex: 1;
+  min-width: 60px;
+}
+
+.pstat {
+  font-variant-numeric: tabular-nums;
+}
+
+.pstat.dim {
+  color: #7a7a7a;
+}
+
+.badge {
+  font-size: 10px;
+  padding: 1px 4px;
+  background: #b00020;
+  color: #fff;
+  border-radius: 2px;
+}
+
+.log {
+  margin-top: 10px;
+  border-top: 1px solid #d8d5cc;
+  padding-top: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.log-line {
+  padding: 1px 0;
+  color: #444;
+  border-bottom: 1px solid #f0eee8;
+}
+
+.turn-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border-left: 4px solid #888;
+  background: #efece4;
+  margin-bottom: 10px;
+}
+
+.turn-banner .dice {
+  font-variant-numeric: tabular-nums;
+  color: #b00020;
+  font-weight: 700;
+}
+
+.hand {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 3px;
+  margin-bottom: 10px;
+}
+
+.hand .card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 2px;
+  border: 1px solid #c8c4b8;
+  border-radius: 3px;
+  background: #fff;
+}
+
+.hand .card .kind {
+  font-size: 9px;
+  color: #6b6b6b;
+}
+
+.hand .card .count {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.hand .card.brick {
+  background: #f6e6df;
+}
+.hand .card.lumber {
+  background: #e0ecdf;
+}
+.hand .card.wool {
+  background: #eef4e6;
+}
+.hand .card.grain {
+  background: #faf3dc;
+}
+.hand .card.ore {
+  background: #eaebed;
+}
+
+.actions button,
+.winner button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 6px 8px;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border: 1px solid #c8c4b8;
+  background: #fff;
+  border-radius: 3px;
+}
+
+.actions button:hover:not(:disabled) {
+  background: #efece4;
+}
+
+.actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.actions button.primary {
+  background: #2f6b3f;
+  border-color: #2f6b3f;
+  color: #fff;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.actions button.primary:hover:not(:disabled) {
+  background: #275934;
+}
+
+.actions button.end {
+  margin-top: 10px;
+  background: #444;
+  border-color: #444;
+}
+
+.actions button.on {
+  background: #e3c04f;
+  border-color: #b8952f;
+}
+
+.cost {
+  font-size: 10px;
+  color: #7a7a7a;
+}
+
+.hint {
+  margin: 4px 0 8px;
+  color: #6b6b6b;
+}
+
+details.trade,
+.actions details {
+  margin-bottom: 6px;
+  border: 1px solid #d8d5cc;
+  border-radius: 3px;
+  padding: 5px 7px;
+  background: #fff;
+}
+
+details summary {
+  cursor: pointer;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b6b6b;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  margin-top: 6px;
+}
+
+.grid button {
+  margin: 0;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.rates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+  font-size: 10px;
+  color: #6b6b6b;
+}
+
+.picker {
+  margin: 6px 0;
+}
+
+.picker-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #6b6b6b;
+}
+
+.picker-row {
+  display: grid;
+  grid-template-columns: 1fr 24px 26px 24px;
+  align-items: center;
+  gap: 3px;
+  margin: 2px 0;
+}
+
+.picker-row button {
+  margin: 0;
+  padding: 1px;
+  justify-content: center;
+  min-height: 20px;
+}
+
+.picker-row .num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.winner {
+  padding: 12px;
+  background: #2f6b3f;
+  color: #fff;
+  border-radius: 4px;
+}
+
+.winner h2 {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+
+.winner button {
+  margin-top: 10px;
+  color: #1a1a1a;
+}
+
+/* Board interaction */
+.tile.targetable,
+.node-target,
+.edge-target {
+  cursor: pointer;
+}
+
+.node-target {
+  fill: #ffffff;
+  stroke: #b00020;
+  stroke-width: 0.05;
+  opacity: 0.85;
+}
+
+.node-target:hover {
+  fill: #ffe58a;
+  r: 0.22;
+}
+
+.edge-target {
+  stroke: #b00020;
+  stroke-width: 0.12;
+  stroke-linecap: round;
+  opacity: 0.55;
+}
+
+.edge-target:hover {
+  opacity: 1;
+  stroke: #ffe58a;
+  stroke-width: 0.16;
+}
+
+.tile-highlight {
+  pointer-events: none;
+}
+
+.tile.targetable:hover .tile-highlight {
+  opacity: 0.6;
+}
+
+text.pips {
+  font-size: 0.13px;
+  letter-spacing: -0.01px;
+}
+
+text.port-label {
+  font-size: 0.15px;
+  font-weight: 700;
+  fill: #1f4d6d;
+}
+
+text.port-resource {
+  font-size: 0.12px;
+  fill: #1f4d6d;
+}

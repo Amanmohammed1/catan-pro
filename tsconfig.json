@@ -1,0 +1,9 @@
+{
+  "//": "Root-level tooling files only. Each package has its own tsconfig.json; this exists so config files at the repo root are covered by a TypeScript project for type-aware linting.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": ["vitest.config.ts"]
+}

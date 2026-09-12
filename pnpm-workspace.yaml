@@ -1,0 +1,14 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+
+# unrs-resolver is the native (napi) module behind eslint-import-resolver-typescript.
+# Its build step must run or TypeScript path resolution fails, which would silently
+# weaken the engine purity boundary in eslint.config.js. Approved deliberately.
+allowBuilds:
+  # esbuild backs tsx, which runs the self-play fuzzer from TypeScript source.
+  esbuild: true
+  unrs-resolver: true
+
+minimumReleaseAgeExclude:
+  - fast-check@4.10.0

@@ -1,0 +1,20 @@
+{
+  "name": "@hexport/bot-runner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "hexport-fuzz": "./src/cli.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "fuzz": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@hexport/engine": "workspace:*",
+    "@hexport/scenarios": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.2"
+  }
+}

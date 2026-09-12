@@ -1,0 +1,92 @@
+/**
+ * The Action union: everything a player can ask the game to do.
+ *
+ * Clients send these; the server validates them against legalMoves() and feeds
+ * them to reduce(). Nothing here computes an outcome — an Action is a request,
+ * and an Event is what actually happened.
+ */
+
+import type { EdgeId, NodeId, TileId } from "../geometry/ids.js";
+import type { ResourceKind } from "../scenario/types.js";
+import type { PlayerId, ResourceCounts } from "../state/types.js";
+
+export type Action =
+  // ---- setup (p.12) -------------------------------------------------------
+  | { readonly t: "setupSettlement"; readonly player: PlayerId; readonly node: NodeId }
+  | { readonly t: "setupRoad"; readonly player: PlayerId; readonly edge: EdgeId }
+
+  // ---- turn flow (p.4) ----------------------------------------------------
+  | { readonly t: "rollDice"; readonly player: PlayerId }
+  | { readonly t: "endTurn"; readonly player: PlayerId }
+
+  // ---- the 7 and the robber (p.5, p.11) -----------------------------------
+  | {
+      readonly t: "discard";
+      readonly player: PlayerId;
+      readonly resources: ResourceCounts;
+    }
+  | { readonly t: "moveRobber"; readonly player: PlayerId; readonly tile: TileId }
+  | {
+      readonly t: "steal";
+      /** null when no adjacent opponent holds a card. */
+      readonly player: PlayerId;
+      readonly target: PlayerId | null;
+    }
+
+  // ---- building (p.4-5) ---------------------------------------------------
+  | { readonly t: "buildRoad"; readonly player: PlayerId; readonly edge: EdgeId }
+  | { readonly t: "buildSettlement"; readonly player: PlayerId; readonly node: NodeId }
+  | { readonly t: "buildCity"; readonly player: PlayerId; readonly node: NodeId }
+  | { readonly t: "buyDevCard"; readonly player: PlayerId }
+
+  // ---- development cards (p.5, p.10) --------------------------------------
+  | { readonly t: "playKnight"; readonly player: PlayerId }
+  | { readonly t: "playRoadBuilding"; readonly player: PlayerId }
+  /** Stop placing free roads early, when no legal spot is left (p.10). */
+  | { readonly t: "endRoadBuilding"; readonly player: PlayerId }
+  | {
+      readonly t: "playYearOfPlenty";
+      readonly player: PlayerId;
+      readonly resources: readonly [ResourceKind, ResourceKind];
+    }
+  | {
+      readonly t: "playMonopoly";
+      readonly player: PlayerId;
+      readonly resource: ResourceKind;
+    }
+
+  // ---- trade (p.4, p.7, p.9) ----------------------------------------------
+  | {
+      readonly t: "bankTrade";
+      readonly player: PlayerId;
+      readonly give: ResourceKind;
+      readonly receive: ResourceKind;
+      /** 4, 3 or 2 depending on harbor access. */
+      readonly rate: number;
+    }
+  | {
+      readonly t: "offerTrade";
+      readonly player: PlayerId;
+      readonly give: ResourceCounts;
+      readonly receive: ResourceCounts;
+    }
+  | {
+      readonly t: "respondTrade";
+      readonly player: PlayerId;
+      readonly accept: boolean;
+    }
+  | {
+      readonly t: "confirmTrade";
+      readonly player: PlayerId;
+      readonly with: PlayerId;
+    }
+  | { readonly t: "cancelTrade"; readonly player: PlayerId };
+
+export type ActionKind = Action["t"];
+
+/** Why an action was refused. Returned by reduce rather than thrown. */
+export interface Rejection {
+  readonly ok: false;
+  readonly reason: string;
+  readonly action: Action;
+}

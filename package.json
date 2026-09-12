@@ -1,0 +1,39 @@
+{
+  "name": "hexport",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.4.1",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "typecheck": "turbo run typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify:pure": "node scripts/verify-engine-pure.mjs",
+    "verify:boundary": "node scripts/verify-boundary-fires.mjs",
+    "verify": "pnpm run lint && pnpm run typecheck && pnpm run verify:pure && pnpm run verify:boundary && pnpm run test",
+    "dev": "pnpm --filter @hexport/web dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "fuzz": "pnpm --filter @hexport/bot-runner fuzz"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.2",
+    "@vitest/coverage-v8": "5.0.0",
+    "eslint": "10.10.0",
+    "eslint-import-resolver-typescript": "4.4.5",
+    "eslint-plugin-boundaries": "7.2.0",
+    "fast-check": "4.10.0",
+    "jsdom": "30.0.1",
+    "prettier": "3.9.6",
+    "tsx": "4.23.13",
+    "turbo": "2.10.12",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.70.0",
+    "vitest": "5.0.0"
+  }
+}

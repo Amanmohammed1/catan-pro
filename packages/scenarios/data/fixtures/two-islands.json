@@ -1,0 +1,76 @@
+{
+  "id": "two-islands",
+  "name": "Two Islands",
+  "schemaVersion": 1,
+  "players": {
+    "min": 3,
+    "max": 4
+  },
+  "victoryPoints": 10,
+  "modules": ["base"],
+  "layout": {
+    "orientation": "pointy"
+  },
+  "cells": [
+    {
+      "coord": [0, 0],
+      "slot": "land",
+      "terrain": "forest",
+      "island": "west"
+    },
+    {
+      "coord": [1, 0],
+      "slot": "land",
+      "terrain": "hill",
+      "island": "west"
+    },
+    {
+      "coord": [6, 0],
+      "slot": "land",
+      "terrain": "field",
+      "island": "east"
+    },
+    {
+      "coord": [7, 0],
+      "slot": "land",
+      "terrain": "mountain",
+      "island": "east"
+    }
+  ],
+  "bags": {},
+  "numbers": {
+    "mode": "path",
+    "sequence": [3, 11, 5, 9],
+    "path": [
+      [0, 0],
+      [1, 0],
+      [6, 0],
+      [7, 0]
+    ],
+    "skipTerrains": ["desert", "sea"]
+  },
+  "ports": [],
+  "pieces": {
+    "roads": 15,
+    "settlements": 5,
+    "cities": 4,
+    "ships": 15
+  },
+  "setup": {
+    "mode": "snakeDraft",
+    "rounds": 2,
+    "placeOn": ["land"]
+  },
+  "islands": [
+    {
+      "id": "west",
+      "vpForFirstSettlement": 0
+    },
+    {
+      "id": "east",
+      "vpForFirstSettlement": 2
+    }
+  ],
+  "hiddenStacks": [],
+  "startingPieces": []
+}
