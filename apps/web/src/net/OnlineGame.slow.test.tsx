@@ -11,6 +11,7 @@ import {
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { spawn, type ChildProcess } from "node:child_process";
+import { WebSocket as NodeWebSocket } from "ws";
 import { connect } from "node:net";
 import { OnlineGame } from "./OnlineGame.js";
 
@@ -27,10 +28,12 @@ import { OnlineGame } from "./OnlineGame.js";
  * they share a realm — and a real process boundary is what a browser talks to
  * anyway.
  *
- * Note: this file logs "The event argument must be an instance of Event" during
- * teardown. That is jsdom's WebSocket finishing its close handshake after the
- * realm has started going away, not a failure in the client. The assertions
- * above all run and pass before it happens.
+ * The global WebSocket is swapped for the one from `ws` below. Vitest's jsdom
+ * environment replaces the global Event class but leaves Node's own WebSocket in
+ * place, so Node ends up constructing a jsdom Event and then refusing it —
+ * "The event argument must be an instance of Event. Received an instance of
+ * Event". The `ws` client speaks the same browser-shaped API the client code
+ * uses and is internally consistent, so the noise goes away.
  */
 
 let server: ChildProcess | null = null;
@@ -81,14 +84,23 @@ async function startServer(): Promise<string> {
   return `ws://127.0.0.1:${String(port)}`;
 }
 
-/** Mount one independent client, as if it were another browser tab. */
+let clientSeq = 0;
+
+/**
+ * Mount one independent client, as if it were another browser tab.
+ *
+ * Each gets its own token key. Real tabs get that isolation from sessionStorage;
+ * here every client shares one jsdom document, so without a distinct key the
+ * second client would resume the first one's seat and knock it off the socket.
+ */
 function mount(url: string): HTMLDivElement {
   const el = document.createElement("div");
   document.body.appendChild(el);
   const root = createRoot(el);
   roots.push({ root, el });
+  const storageKey = `hexport.test.${String(clientSeq++)}`;
   act(() => {
-    root.render(<OnlineGame url={url} />);
+    root.render(<OnlineGame url={url} storageKey={storageKey} />);
   });
   return el;
 }
@@ -143,6 +155,7 @@ async function waitFor(
 }
 
 beforeAll(async () => {
+  (globalThis as unknown as { WebSocket: unknown }).WebSocket = NodeWebSocket;
   serverUrl = await startServer();
 }, 60000);
 
@@ -153,7 +166,7 @@ afterAll(() => {
 
 beforeEach(() => {
   try {
-    window.localStorage.clear();
+    window.sessionStorage.clear();
   } catch {
     /* ignore */
   }

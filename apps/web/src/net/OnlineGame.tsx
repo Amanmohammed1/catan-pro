@@ -10,8 +10,15 @@ import { useConnection } from "./useConnection.js";
  * The client holds nothing but what the server sent it. Every command goes out
  * over the socket and comes back as a redacted view (golden rules 2 and 5).
  */
-export function OnlineGame({ url }: { readonly url: string }): React.JSX.Element {
-  const net = useConnection(url);
+export function OnlineGame({
+  url,
+  storageKey,
+}: {
+  readonly url: string;
+  /** Test-only: isolate each client's seat token. */
+  readonly storageKey?: string;
+}): React.JSX.Element {
+  const net = useConnection(url, storageKey === undefined ? {} : { storageKey });
 
   const session: GameSession | null = useMemo(() => {
     if (net.board === null || net.view === null) return null;

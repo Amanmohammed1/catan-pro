@@ -13,10 +13,14 @@
     "@hexport/protocol": "workspace:*",
     "@hexport/scenarios": "workspace:*",
     "fastify": "5.12.4",
-    "ws": "8.21.3"
+    "ws": "8.21.3",
+    "drizzle-orm": "0.45.2",
+    "postgres": "3.4.9"
   },
   "devDependencies": {
     "@types/ws": "8.18.1",
-    "@types/node": "22.20.2"
+    "@types/node": "22.20.2",
+    "@electric-sql/pglite": "0.5.8",
+    "drizzle-kit": "0.31.10"
   }
 }

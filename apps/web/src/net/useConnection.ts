@@ -20,6 +20,24 @@ import type { Action, BoardGraph, GameEvent } from "@hexport/engine";
 
 const TOKEN_KEY = "hexport.token";
 
+/**
+ * sessionStorage, not localStorage.
+ *
+ * The token identifies a seat, so it must survive a refresh — sessionStorage
+ * does. It must NOT be shared between tabs: localStorage is, which means opening
+ * a second tab resumes the first tab's seat and kicks it off the socket. Two
+ * tabs are two players, which is how anyone tests this locally.
+ */
+function storage(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    // Private browsing with storage disabled. Resume will not work; nothing
+    // else is affected.
+    return null;
+  }
+}
+
 export type ConnectionStatus = "connecting" | "online" | "reconnecting";
 
 export interface NetState {
@@ -48,18 +66,17 @@ const EMPTY: NetState = {
   deadline: null,
 };
 
-function readToken(): string | null {
+function readToken(key: string): string | null {
   try {
-    return window.localStorage.getItem(TOKEN_KEY);
+    return storage()?.getItem(key) ?? null;
   } catch {
-    // Private browsing. Resume simply will not work; everything else does.
     return null;
   }
 }
 
-function writeToken(token: string): void {
+function writeToken(key: string, token: string): void {
   try {
-    window.localStorage.setItem(TOKEN_KEY, token);
+    storage()?.setItem(key, token);
   } catch {
     /* ignore */
   }
@@ -75,7 +92,17 @@ export function defaultServerUrl(): string {
   return `${protocol}//${window.location.host}/ws`;
 }
 
-export function useConnection(url: string) {
+export interface ConnectionOptions {
+  /**
+   * Where to keep the seat token. Defaults to one key per tab, which is what a
+   * real player wants. Tests override it so several clients can share one
+   * jsdom document without fighting over the same seat.
+   */
+  readonly storageKey?: string;
+}
+
+export function useConnection(url: string, options: ConnectionOptions = {}) {
+  const tokenKey = options.storageKey ?? TOKEN_KEY;
   const [state, setState] = useState<NetState>(EMPTY);
   const socketRef = useRef<WebSocket | null>(null);
   const retryRef = useRef(0);
@@ -87,54 +114,57 @@ export function useConnection(url: string) {
     socket.send(encode(message));
   }, []);
 
-  const onMessage = useCallback((message: ServerMessage) => {
-    setState((previous) => {
-      switch (message.t) {
-        case "welcome":
-          if (message.token !== "") writeToken(message.token);
-          return { ...previous, status: "online", error: null };
+  const onMessage = useCallback(
+    (message: ServerMessage) => {
+      setState((previous) => {
+        switch (message.t) {
+          case "welcome":
+            if (message.token !== "") writeToken(tokenKey, message.token);
+            return { ...previous, status: "online", error: null };
 
-        case "room":
-          return { ...previous, room: message.room, error: null };
+          case "room":
+            return { ...previous, room: message.room, error: null };
 
-        case "snapshot":
-          return {
-            ...previous,
-            board: message.board,
-            view: message.view,
-            log: message.log,
-            chatLines: message.chat,
-            seedCommitment: message.seedCommitment,
-            deadline: message.timer?.deadline ?? null,
-            error: null,
-          };
+          case "snapshot":
+            return {
+              ...previous,
+              board: message.board,
+              view: message.view,
+              log: message.log,
+              chatLines: message.chat,
+              seedCommitment: message.seedCommitment,
+              deadline: message.timer?.deadline ?? null,
+              error: null,
+            };
 
-        case "update":
-          return {
-            ...previous,
-            view: message.view,
-            log: [...previous.log, ...message.events],
-            deadline: message.timer?.deadline ?? null,
-            error: null,
-          };
+          case "update":
+            return {
+              ...previous,
+              view: message.view,
+              log: [...previous.log, ...message.events],
+              deadline: message.timer?.deadline ?? null,
+              error: null,
+            };
 
-        case "chat":
-          return {
-            ...previous,
-            chatLines: [...previous.chatLines, message.line],
-          };
+          case "chat":
+            return {
+              ...previous,
+              chatLines: [...previous.chatLines, message.line],
+            };
 
-        case "seedRevealed":
-          return { ...previous, revealedSeed: message.seed };
+          case "seedRevealed":
+            return { ...previous, revealedSeed: message.seed };
 
-        case "error":
-          return { ...previous, error: message.message };
+          case "error":
+            return { ...previous, error: message.message };
 
-        default:
-          return previous;
-      }
-    });
-  }, []);
+          default:
+            return previous;
+        }
+      });
+    },
+    [tokenKey],
+  );
 
   useEffect(() => {
     closedRef.current = false;
@@ -149,7 +179,7 @@ export function useConnection(url: string) {
         setState((p) => ({ ...p, status: "online" }));
         // Resume a seat if we have one. The server answers with a snapshot, or
         // an error if the session has expired.
-        const token = readToken();
+        const token = readToken(tokenKey);
         socket.send(
           encode(
             token === null || token === ""
@@ -194,7 +224,7 @@ export function useConnection(url: string) {
       socket.onerror = null;
       socket.close();
     };
-  }, [url, onMessage]);
+  }, [url, onMessage, tokenKey]);
 
   const createRoom = useCallback(
     (nickname: string, playerCount: number) => {
@@ -244,7 +274,7 @@ export function useConnection(url: string) {
 
   const leave = useCallback(() => {
     try {
-      window.localStorage.removeItem(TOKEN_KEY);
+      storage()?.removeItem(tokenKey);
     } catch {
       /* ignore */
     }
@@ -257,7 +287,7 @@ export function useConnection(url: string) {
       log: [],
       chatLines: [],
     }));
-  }, [send]);
+  }, [send, tokenKey]);
 
   const dismissError = useCallback(() => {
     setState((p) => ({ ...p, error: null }));
