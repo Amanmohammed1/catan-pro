@@ -70,7 +70,9 @@ function JoinForm({
           maxLength={24}
           autoComplete="nickname"
           placeholder="Who are you?"
-          onChange={(event) => { setNickname(event.target.value); }}
+          onChange={(event) => {
+            setNickname(event.target.value);
+          }}
           className="w-full rounded-card border border-surface-600 bg-surface-900/70 px-2.5 py-2 text-sm placeholder:text-ink-700"
         />
       </Field>
@@ -83,7 +85,9 @@ function JoinForm({
               type="button"
               role="radio"
               aria-checked={seats === n}
-              onClick={() => { setSeats(n); }}
+              onClick={() => {
+                setSeats(n);
+              }}
               className={[
                 "flex-1 rounded-card border px-3 py-2 text-sm transition-colors",
                 seats === n
@@ -101,7 +105,9 @@ function JoinForm({
         intent="primary"
         disabled={!named}
         reason="Enter a name first"
-        onClick={() => { net.createRoom(nickname.trim(), seats); }}
+        onClick={() => {
+          net.createRoom(nickname.trim(), seats);
+        }}
         className="justify-center"
       >
         Create a room
@@ -121,7 +127,9 @@ function JoinForm({
           placeholder="ABCDE"
           autoCapitalize="characters"
           spellCheck={false}
-          onChange={(event) => { setCode(event.target.value.toUpperCase()); }}
+          onChange={(event) => {
+            setCode(event.target.value.toUpperCase());
+          }}
           className="w-full rounded-card border border-surface-600 bg-surface-900/70 px-2.5 py-2 text-center font-num text-lg tracking-[0.3em] uppercase placeholder:tracking-[0.3em] placeholder:text-ink-700"
         />
       </Field>
@@ -129,7 +137,9 @@ function JoinForm({
       <Button
         disabled={!named || code.length !== 5}
         reason={named ? "A room code is five characters" : "Enter a name first"}
-        onClick={() => { net.joinRoom(code, nickname.trim()); }}
+        onClick={() => {
+          net.joinRoom(code, nickname.trim());
+        }}
         className="justify-center"
       >
         Join
@@ -199,7 +209,9 @@ function RoomPanel({
             {isHost && seat.player !== you && (
               <button
                 type="button"
-                onClick={() => { net.kick(seat.player); }}
+                onClick={() => {
+                  net.kick(seat.player);
+                }}
                 className="rounded px-1.5 py-0.5 text-[10px] text-ink-700 transition-colors hover:bg-danger/20 hover:text-danger"
               >
                 remove
@@ -212,7 +224,9 @@ function RoomPanel({
       <div className="flex flex-col gap-1.5">
         <Button
           intent={me?.ready === true ? "default" : "primary"}
-          onClick={() => { net.setReady(me?.ready !== true); }}
+          onClick={() => {
+            net.setReady(me?.ready !== true);
+          }}
           className="justify-center"
         >
           {me?.ready === true ? "Not ready" : "I'm ready"}
@@ -236,8 +250,8 @@ function RoomPanel({
 
         {!isHost && (
           <p className="py-1 text-center text-xs text-ink-500">
-            Waiting for {room.seats.find((s) => s.isHost)?.nickname ?? "the host"}{" "}
-            to start.
+            Waiting for {room.seats.find((s) => s.isHost)?.nickname ?? "the host"} to
+            start.
           </p>
         )}
 

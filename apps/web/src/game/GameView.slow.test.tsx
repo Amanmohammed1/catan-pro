@@ -20,6 +20,12 @@ import { completeSetupInUi, drive, mountGame, text } from "./uiDriver.js";
 
 let mounted: { el: HTMLDivElement; root: Root } | null = null;
 
+/** The turn counter the screen is showing, or -1 if it is not visible. */
+function readTurn(el: HTMLElement): number {
+  const found = /turn (\d+)/.exec(el.textContent ?? "");
+  return found === null ? -1 : Number(found[1]);
+}
+
 afterEach(() => {
   if (mounted !== null) {
     act(() => {
@@ -36,9 +42,26 @@ describe("a complete game", () => {
     const el = mounted.el;
     completeSetupInUi(el);
 
+    // Fail on a stall rather than on the step budget: a driver that clicks
+    // forever without the turn advancing is a different bug from a slow game,
+    // and the message should say which one happened.
     let steps = 0;
+    let lastTurn = -1;
+    let sinceProgress = 0;
+
     for (; steps < 40000; steps++) {
       if (text(el).includes("wins")) break;
+
+      const turn = readTurn(el);
+      if (turn !== lastTurn) {
+        lastTurn = turn;
+        sinceProgress = 0;
+      } else if (++sinceProgress > 600) {
+        throw new Error(
+          `Stuck on turn ${String(turn)} after ${String(steps)} clicks. Screen said: ${text(el).slice(0, 400)}`,
+        );
+      }
+
       if (drive(el)) continue;
       throw new Error(
         `UI offered no usable control. Screen said: ${text(el).slice(0, 400)}`,
@@ -47,6 +70,6 @@ describe("a complete game", () => {
 
     expect(steps).toBeLessThan(40000);
     expect(text(el)).toContain("wins");
-    expect(el.querySelector(".winner")).not.toBeNull();
+    expect(el.querySelector("[data-winner]")).not.toBeNull();
   }, 180000);
 });

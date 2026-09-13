@@ -10,11 +10,7 @@ import { BOARD_TOP, edgeTransform, nodePosition } from "./layout3d.js";
  * that control it, so it is obvious *which* two spots give you the rate. The
  * ratio itself is labelled in the DOM inspector rather than in WebGL text.
  */
-export function Harbors({
-  board,
-}: {
-  readonly board: BoardGraph;
-}): React.JSX.Element {
+export function Harbors({ board }: { readonly board: BoardGraph }): React.JSX.Element {
   const ports = useMemo(() => Object.values(board.ports), [board]);
 
   return (

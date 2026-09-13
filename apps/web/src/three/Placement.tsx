@@ -124,7 +124,11 @@ export function EdgePlacements({
           >
             <mesh
               geometry={ghost}
-              scale={[transform.length / 0.62, isHovered ? 1 : 0.42, isHovered ? 1 : 0.5]}
+              scale={[
+                transform.length / 0.62,
+                isHovered ? 1 : 0.42,
+                isHovered ? 1 : 0.5,
+              ]}
             >
               <meshStandardMaterial
                 color={color}
@@ -185,7 +189,12 @@ function Pulse({
   });
 
   return (
-    <mesh ref={mesh} visible={visible} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+    <mesh
+      ref={mesh}
+      visible={visible}
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, 0.02, 0]}
+    >
       <ringGeometry args={[0.11, 0.17, 24]} />
       <meshBasicMaterial
         color={color}

@@ -185,9 +185,7 @@ describe("several turns", () => {
     for (let step = 0; step < 400; step++) {
       if (text(el).includes("wins")) break;
       if (drive(el)) continue;
-      throw new Error(
-        `Nothing usable on screen. It said: ${text(el).slice(0, 300)}`,
-      );
+      throw new Error(`Nothing usable on screen. It said: ${text(el).slice(0, 300)}`);
     }
 
     expect(el.querySelectorAll("ol li").length).toBeGreaterThan(5);

@@ -26,7 +26,10 @@ export function Button({
   readonly onClick?: (() => void) | undefined;
   readonly children: React.ReactNode;
   readonly className?: string;
-} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onClick" | "disabled">): React.JSX.Element {
+} & Omit<
+  React.ButtonHTMLAttributes<HTMLButtonElement>,
+  "onClick" | "disabled"
+>): React.JSX.Element {
   const base =
     "inline-flex w-full items-center justify-between gap-2 rounded-card border text-left transition-all duration-150 ease-[var(--ease-out-soft)] disabled:cursor-not-allowed disabled:opacity-40 active:translate-y-px";
 
@@ -38,7 +41,8 @@ export function Button({
     primary:
       "border-accent/60 bg-accent/85 text-surface-900 font-semibold hover:bg-accent shadow-lift",
     danger: "border-danger/55 bg-danger/20 text-danger hover:bg-danger/30",
-    ghost: "border-transparent bg-transparent text-ink-500 hover:bg-surface-700 hover:text-ink-100",
+    ghost:
+      "border-transparent bg-transparent text-ink-500 hover:bg-surface-700 hover:text-ink-100",
   } as const;
 
   return (

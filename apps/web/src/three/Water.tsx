@@ -11,11 +11,7 @@ import { prefersReducedMotion } from "../ui/motion.js";
  * very slowly. It reads as water without any of the cost of a real water shader,
  * and it gives the board an edge so it does not float in a void.
  */
-export function Water({
-  bounds,
-}: {
-  readonly bounds: BoardBounds;
-}): React.JSX.Element {
+export function Water({ bounds }: { readonly bounds: BoardBounds }): React.JSX.Element {
   const shimmer = useRef<THREE.Mesh>(null);
   const size = bounds.radius * 6;
 

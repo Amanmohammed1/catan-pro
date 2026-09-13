@@ -19,7 +19,12 @@ export function LogPanel({
   readonly log: readonly GameEvent[];
   readonly names: readonly string[];
   readonly colors: readonly string[];
-  readonly chat?: readonly { from: string; player: number | null; text: string; at: number }[];
+  readonly chat?: readonly {
+    from: string;
+    player: number | null;
+    text: string;
+    at: number;
+  }[];
   readonly onChat?: ((text: string) => void) | undefined;
 }): React.JSX.Element {
   const [tab, setTab] = useState<"log" | "chat">("log");
@@ -39,12 +44,26 @@ export function LogPanel({
   return (
     <div className="flex h-full min-h-0 flex-col rounded-panel border border-surface-700 bg-surface-800/80 backdrop-blur">
       {hasChat ? (
-        <div className="flex shrink-0 gap-1 border-b border-surface-700 p-1.5" role="tablist">
-          <TabButton active={tab === "log"} onClick={() => { setTab("log"); }}>
+        <div
+          className="flex shrink-0 gap-1 border-b border-surface-700 p-1.5"
+          role="tablist"
+        >
+          <TabButton
+            active={tab === "log"}
+            onClick={() => {
+              setTab("log");
+            }}
+          >
             Log
           </TabButton>
-          <TabButton active={tab === "chat"} onClick={() => { setTab("chat"); }}>
-            Chat{chat !== undefined && chat.length > 0 ? ` (${String(chat.length)})` : ""}
+          <TabButton
+            active={tab === "chat"}
+            onClick={() => {
+              setTab("chat");
+            }}
+          >
+            Chat
+            {chat !== undefined && chat.length > 0 ? ` (${String(chat.length)})` : ""}
           </TabButton>
         </div>
       ) : (
@@ -103,7 +122,9 @@ export function LogPanel({
               maxLength={400}
               placeholder="Say something"
               aria-label="Chat message"
-              onChange={(event) => { setDraft(event.target.value); }}
+              onChange={(event) => {
+                setDraft(event.target.value);
+              }}
               className="w-full rounded-md border border-surface-600 bg-surface-900/70 px-2 py-1.5 text-xs placeholder:text-ink-700"
             />
           </form>

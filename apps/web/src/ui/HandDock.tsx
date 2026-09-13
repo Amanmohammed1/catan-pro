@@ -14,7 +14,10 @@ import { ResourceIcon, CardBackIcon } from "./icons.js";
  * of your hand stays stable and your eye keeps its place.
  */
 
-const RESOURCE_STYLE: Record<ResourceKind, { bg: string; text: string; label: string }> = {
+const RESOURCE_STYLE: Record<
+  ResourceKind,
+  { bg: string; text: string; label: string }
+> = {
   brick: { bg: "bg-brick/18 border-brick/45", text: "text-brick", label: "Brick" },
   lumber: { bg: "bg-lumber/18 border-lumber/45", text: "text-lumber", label: "Lumber" },
   wool: { bg: "bg-wool/18 border-wool/45", text: "text-wool", label: "Wool" },
@@ -81,9 +84,7 @@ export function HandDock({
         <span
           className={[
             "rounded-md px-2 py-1 font-num text-xs tabular-nums",
-            overLimit
-              ? "bg-danger/20 text-danger"
-              : "bg-surface-700/70 text-ink-500",
+            overLimit ? "bg-danger/20 text-danger" : "bg-surface-700/70 text-ink-500",
           ].join(" ")}
           title={
             overLimit

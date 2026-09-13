@@ -1,12 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import type {
-  BoardGraph,
-  Building,
-  EdgeId,
-  NodeId,
-  PlayerId,
-} from "@hexport/engine";
+import type { BoardGraph, Building, EdgeId, NodeId, PlayerId } from "@hexport/engine";
 import {
   createCityGeometry,
   createRoadGeometry,

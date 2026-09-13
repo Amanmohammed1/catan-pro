@@ -54,7 +54,9 @@ export function PlacementList({
       <button
         type="button"
         aria-expanded={open}
-        onClick={() => { setOpen((value) => !value); }}
+        onClick={() => {
+          setOpen((value) => !value);
+        }}
         className="flex w-full items-center justify-between px-2.5 py-1.5 text-xs text-accent"
       >
         <span>
@@ -70,7 +72,9 @@ export function PlacementList({
               <button
                 type="button"
                 data-placement={entry.key}
-                onClick={() => { onAction(entry.action); }}
+                onClick={() => {
+                  onAction(entry.action);
+                }}
                 className="w-full rounded px-2 py-1.5 text-left text-xs text-ink-300 transition-colors hover:bg-accent/15 hover:text-accent"
               >
                 {entry.label}
@@ -89,7 +93,9 @@ export function PlacementList({
               <button
                 type="button"
                 data-placement={entry.key}
-                onClick={() => { onAction(entry.action); }}
+                onClick={() => {
+                  onAction(entry.action);
+                }}
               >
                 {entry.label}
               </button>

@@ -115,9 +115,7 @@ export function createMarkerRingGeometry(): THREE.BufferGeometry {
  * here, and the version has moved between releases. Positions and normals are
  * all these shapes carry, so merging them by hand is both smaller and stable.
  */
-function mergeGeometries(
-  parts: readonly THREE.BufferGeometry[],
-): THREE.BufferGeometry {
+function mergeGeometries(parts: readonly THREE.BufferGeometry[]): THREE.BufferGeometry {
   const positions: number[] = [];
   const normals: number[] = [];
 
@@ -135,10 +133,7 @@ function mergeGeometries(
   }
 
   const merged = new THREE.BufferGeometry();
-  merged.setAttribute(
-    "position",
-    new THREE.Float32BufferAttribute(positions, 3),
-  );
+  merged.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   merged.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
   return merged;
 }

@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { totalResources, type Action, type EdgeId, type NodeId, type TileId } from "@hexport/engine";
+import {
+  totalResources,
+  type Action,
+  type EdgeId,
+  type NodeId,
+  type TileId,
+} from "@hexport/engine";
 import { BoardCanvas } from "../three/BoardCanvas.js";
 import { ActionBar, type BuildMode } from "../ui/ActionBar.js";
 import { Announcer } from "../ui/Announcer.js";
@@ -9,7 +15,12 @@ import { LogPanel } from "../ui/LogPanel.js";
 import { PlayerStrip } from "../ui/PlayerStrip.js";
 import { PlacementList } from "../ui/PlacementList.js";
 import { Button } from "../ui/Button.js";
-import { describePrompt, playerNames, seatColors, type GameSession } from "./session.js";
+import {
+  describePrompt,
+  playerNames,
+  seatColors,
+  type GameSession,
+} from "./session.js";
 
 /**
  * The game screen.
@@ -106,7 +117,9 @@ export function GameScreen({
         yourTurn={yourTurn}
         waiting={waiting}
         showStats={showStats}
-        onToggleStats={() => { setShowStats((s) => !s); }}
+        onToggleStats={() => {
+          setShowStats((s) => !s);
+        }}
       />
 
       <div className="grid min-h-0 grid-cols-[minmax(210px,240px)_minmax(0,1fr)_minmax(250px,300px)] gap-2">
@@ -143,7 +156,11 @@ export function GameScreen({
           {view.winner !== null && <WinnerOverlay session={session} />}
         </main>
 
-        <aside className="min-h-0 overflow-y-auto rounded-panel border border-surface-700 bg-surface-800/80 p-2.5 backdrop-blur">
+        <aside
+          data-panel="actions"
+          aria-label="Your controls"
+          className="min-h-0 overflow-y-auto rounded-panel border border-surface-700 bg-surface-800/80 p-2.5 backdrop-blur"
+        >
           <div className="mb-2.5 flex items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold">
               {session.hotSeat
@@ -152,17 +169,14 @@ export function GameScreen({
                   ? "Your turn"
                   : names[view.currentPlayer]}
             </h2>
-            <span className="text-[11px] text-ink-500">
-              turn {view.turn}
-            </span>
+            <span className="text-[11px] text-ink-500">turn {view.turn}</span>
           </div>
 
           <p
+            data-prompt={phase.k}
             className={[
               "mb-2.5 rounded-card px-2.5 py-1.5 text-xs",
-              waiting
-                ? "bg-accent/15 text-accent"
-                : "bg-surface-700/60 text-ink-500",
+              waiting ? "bg-accent/15 text-accent" : "bg-surface-700/60 text-ink-500",
             ].join(" ")}
           >
             {describePrompt(view, view.you)}
@@ -219,16 +233,12 @@ function TopBar({
 
   return (
     <header className="flex items-center gap-3 rounded-panel border border-surface-700 bg-surface-800/80 px-3 py-2 backdrop-blur">
-      <span className="font-display text-sm font-semibold tracking-tight">
-        hexport
-      </span>
+      <span className="font-display text-sm font-semibold tracking-tight">hexport</span>
 
       <span
         className={[
           "rounded-md px-2 py-1 text-[11px] font-medium",
-          waiting
-            ? "bg-accent/20 text-accent"
-            : "bg-surface-700 text-ink-500",
+          waiting ? "bg-accent/20 text-accent" : "bg-surface-700 text-ink-500",
         ].join(" ")}
       >
         {session.hotSeat
@@ -240,9 +250,7 @@ function TopBar({
 
       <Dice values={view.dice} />
 
-      {session.deadline != null && waiting && (
-        <Countdown deadline={session.deadline} />
-      )}
+      {session.deadline != null && waiting && <Countdown deadline={session.deadline} />}
 
       <div className="ml-auto flex items-center gap-2">
         <button
@@ -262,8 +270,12 @@ function Countdown({ deadline }: { readonly deadline: number }): React.JSX.Eleme
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const handle = window.setInterval(() => { setNow(Date.now()); }, 500);
-    return () => { window.clearInterval(handle); };
+    const handle = window.setInterval(() => {
+      setNow(Date.now());
+    }, 500);
+    return () => {
+      window.clearInterval(handle);
+    };
   }, []);
 
   const left = Math.max(0, Math.ceil((deadline - now) / 1000));
@@ -294,7 +306,11 @@ function WinnerOverlay({
   const youWon = winner === view.you;
 
   return (
-    <div className="absolute inset-0 grid place-items-center bg-surface-900/75 backdrop-blur-sm">
+    <div
+      data-winner={winner}
+      role="status"
+      className="absolute inset-0 grid place-items-center bg-surface-900/75 backdrop-blur-sm"
+    >
       <div className="w-[300px] rounded-panel border border-surface-600 bg-surface-800 p-5 text-center shadow-panel">
         <span
           aria-hidden="true"
@@ -321,7 +337,9 @@ function ErrorToast({
 }): React.JSX.Element {
   useEffect(() => {
     const handle = window.setTimeout(onDismiss, 6000);
-    return () => { window.clearTimeout(handle); };
+    return () => {
+      window.clearTimeout(handle);
+    };
   }, [message, onDismiss]);
 
   return (

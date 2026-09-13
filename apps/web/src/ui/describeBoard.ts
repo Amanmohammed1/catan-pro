@@ -24,8 +24,7 @@ export function describeNode(board: BoardGraph, node: NodeId): string {
 
   const names = tiles.map((tile) => describeTile(board, tile));
   const port = board.nodes[node]?.port;
-  const harbour =
-    port == null ? "" : ` · ${describePort(board, port)}`;
+  const harbour = port == null ? "" : ` · ${describePort(board, port)}`;
 
   return `${joinList(names)}${harbour}`;
 }

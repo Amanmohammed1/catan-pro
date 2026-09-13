@@ -41,6 +41,23 @@ export function text(el: HTMLElement): string {
 }
 
 /**
+ * The controls panel, excluding the game log.
+ *
+ * Matching phase names against the whole screen looks fine until the log fills
+ * up with the history of the game: "Discard required: Player 3" scrolls past and
+ * every check for "Discard" starts matching forever. Scope to the panel that
+ * actually reflects the current phase.
+ */
+export function panel(el: HTMLElement): HTMLElement {
+  return el.querySelector<HTMLElement>('[data-panel="actions"]') ?? el;
+}
+
+/** The phase the controls panel is currently showing. */
+export function phase(el: HTMLElement): string {
+  return el.querySelector("[data-prompt]")?.getAttribute("data-prompt") ?? "";
+}
+
+/**
  * The first legal placement offered in the DOM.
  *
  * Since the board became a WebGL canvas, clicking a mesh is unavailable to
@@ -74,7 +91,7 @@ export function completeSetupInUi(el: HTMLElement): void {
  */
 export function drive(el: HTMLElement): boolean {
   const tryBuild = (label: string): boolean => {
-    const b = button(el, label);
+    const b = button(panel(el), label);
     if (b === undefined || b.disabled) return false;
     click(b);
     const target = firstPlacement(el);
@@ -86,22 +103,22 @@ export function drive(el: HTMLElement): boolean {
     return true;
   };
 
-  const roll = button(el, "Roll the dice");
+  const here = phase(el);
+
+  const roll = button(panel(el), "Roll the dice");
   if (roll !== undefined) {
     click(roll);
     return true;
   }
 
-  if (text(el).includes("Discard")) {
-    const confirm = button(el, "Discard");
+  if (here === "discard") {
+    const confirm = button(panel(el), "Discard");
     if (confirm !== undefined && !confirm.disabled) {
       click(confirm);
       return true;
     }
     const plus = [...el.querySelectorAll("button")].find(
-      (b) =>
-        (b.getAttribute("aria-label") ?? "").startsWith("one more") &&
-        !b.disabled,
+      (b) => (b.getAttribute("aria-label") ?? "").startsWith("one more") && !b.disabled,
     );
     if (plus !== undefined) {
       click(plus);
@@ -109,7 +126,7 @@ export function drive(el: HTMLElement): boolean {
     }
   }
 
-  if (text(el).includes("Move the robber")) {
+  if (here === "moveRobber") {
     const tile = firstPlacement(el);
     if (tile !== null) {
       click(tile);
@@ -117,11 +134,11 @@ export function drive(el: HTMLElement): boolean {
     }
   }
 
-  if (text(el).includes("Choose someone to rob") || text(el).includes("Steal from")) {
+  if (here === "steal") {
+    const controls = panel(el);
     const steal =
-      button(el, "Continue") ??
-      [...el.querySelectorAll("button")].find((b) =>
-        (b.getAttribute("class") ?? "").includes("justify-between") &&
+      button(controls, "Continue") ??
+      [...controls.querySelectorAll("button")].find((b) =>
         (b.textContent ?? "").includes("cards"),
       );
     if (steal !== undefined) {
@@ -130,26 +147,35 @@ export function drive(el: HTMLElement): boolean {
     }
   }
 
-  if (text(el).includes("free road")) {
+  if (here === "roadBuilding") {
     const edge = firstPlacement(el);
     if (edge !== null) {
       click(edge);
       return true;
     }
-    const cont = button(el, "continue");
+    const cont = button(panel(el), "continue");
     if (cont !== undefined) {
       click(cont);
       return true;
     }
   }
 
-  if (text(el).includes("Trade and build")) {
+  if (here === "tradeOffer") {
+    const controls = panel(el);
+    const answer = button(controls, "Decline") ?? button(controls, "Withdraw offer");
+    if (answer !== undefined) {
+      click(answer);
+      return true;
+    }
+  }
+
+  if (here === "main") {
     if (tryBuild("City")) return true;
     if (tryBuild("Settlement")) return true;
     if (tryBuild("Road")) return true;
 
     // Convert surplus into something useful before giving up on the turn.
-    const bank = [...el.querySelectorAll("details")].find((d) =>
+    const bank = [...panel(el).querySelectorAll("details")].find((d) =>
       (d.textContent ?? "").startsWith("Give "),
     );
     if (bank !== undefined) {
@@ -161,20 +187,20 @@ export function drive(el: HTMLElement): boolean {
       }
     }
 
-    const end = button(el, "End turn");
+    const end = button(panel(el), "End turn");
     if (end !== undefined) {
       click(end);
       return true;
     }
   }
 
-  const end = button(el, "End turn");
+  const end = button(panel(el), "End turn");
   if (end !== undefined) {
     click(end);
     return true;
   }
 
-  const cont = button(el, "continue");
+  const cont = button(panel(el), "continue");
   if (cont !== undefined) {
     click(cont);
     return true;

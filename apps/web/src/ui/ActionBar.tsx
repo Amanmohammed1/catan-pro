@@ -141,7 +141,9 @@ function MainControls({
           disabled={!can("buildRoad")}
           reason={whyNot(view, "road")}
           intent={mode === "road" ? "primary" : "default"}
-          onClick={() => { onMode(mode === "road" ? "none" : "road"); }}
+          onClick={() => {
+            onMode(mode === "road" ? "none" : "road");
+          }}
           hint={<Cost parts={costOf("road")} />}
         >
           Road
@@ -150,7 +152,9 @@ function MainControls({
           disabled={!can("buildSettlement")}
           reason={whyNot(view, "settlement")}
           intent={mode === "settlement" ? "primary" : "default"}
-          onClick={() => { onMode(mode === "settlement" ? "none" : "settlement"); }}
+          onClick={() => {
+            onMode(mode === "settlement" ? "none" : "settlement");
+          }}
           hint={<Cost parts={costOf("settlement")} />}
         >
           Settlement
@@ -159,7 +163,9 @@ function MainControls({
           disabled={!can("buildCity")}
           reason={whyNot(view, "city")}
           intent={mode === "city" ? "primary" : "default"}
-          onClick={() => { onMode(mode === "city" ? "none" : "city"); }}
+          onClick={() => {
+            onMode(mode === "city" ? "none" : "city");
+          }}
           hint={<Cost parts={costOf("city")} />}
         >
           City
@@ -227,12 +233,22 @@ function DevCardControls({
   return (
     <Group label="Play a card">
       {knight !== undefined && (
-        <Button onClick={() => { onAction(knight); }} hint="move the robber">
+        <Button
+          onClick={() => {
+            onAction(knight);
+          }}
+          hint="move the robber"
+        >
           {devCardLabel("knight")}
         </Button>
       )}
       {roads !== undefined && (
-        <Button onClick={() => { onAction(roads); }} hint="2 free roads">
+        <Button
+          onClick={() => {
+            onAction(roads);
+          }}
+          hint="2 free roads"
+        >
           {devCardLabel("roadBuilding")}
         </Button>
       )}
@@ -244,7 +260,9 @@ function DevCardControls({
                 <Button
                   key={move.resources.join()}
                   size="sm"
-                  onClick={() => { onAction(move); }}
+                  onClick={() => {
+                    onAction(move);
+                  }}
                 >
                   {move.resources.join(" + ")}
                 </Button>
@@ -258,7 +276,13 @@ function DevCardControls({
           <div className="grid grid-cols-2 gap-1">
             {monopoly.map((move) =>
               move.t === "playMonopoly" ? (
-                <Button key={move.resource} size="sm" onClick={() => { onAction(move); }}>
+                <Button
+                  key={move.resource}
+                  size="sm"
+                  onClick={() => {
+                    onAction(move);
+                  }}
+                >
                   {move.resource}
                 </Button>
               ) : null,
@@ -303,7 +327,9 @@ function BankTrade({
                 <Button
                   key={action.receive}
                   size="sm"
-                  onClick={() => { onAction(action); }}
+                  onClick={() => {
+                    onAction(action);
+                  }}
                 >
                   <span className="flex items-center gap-1.5">
                     <ResourceIcon kind={action.receive} className="h-3.5 w-3.5" />
@@ -358,9 +384,7 @@ function OfferTrade({
             intent="primary"
             disabled={!ready || !affordable}
             reason={
-              !affordable
-                ? "You do not hold that much"
-                : "Put something on both sides"
+              !affordable ? "You do not hold that much" : "Put something on both sides"
             }
             onClick={() => {
               onAction({ t: "offerTrade", player: view.you, give, receive: want });
@@ -384,9 +408,7 @@ function TradeOfferControls({ view, onAction }: ActionBarProps): React.JSX.Eleme
   return (
     <div className="flex flex-col gap-2">
       <div className="rounded-card border border-surface-600 bg-surface-700/70 px-3 py-2 text-xs">
-        <p className="mb-1 font-medium text-ink-100">
-          {names[offer.from]} offers
-        </p>
+        <p className="mb-1 font-medium text-ink-100">{names[offer.from]} offers</p>
         <p className="text-ink-300">
           gives <Summary counts={offer.give} /> for <Summary counts={offer.receive} />
         </p>
@@ -402,7 +424,9 @@ function TradeOfferControls({ view, onAction }: ActionBarProps): React.JSX.Eleme
             <Button
               key={`r${String(index)}`}
               intent={move.accept ? "primary" : "default"}
-              onClick={() => { onAction(move); }}
+              onClick={() => {
+                onAction(move);
+              }}
             >
               {move.accept ? "Accept" : "Decline"}
             </Button>
@@ -410,14 +434,26 @@ function TradeOfferControls({ view, onAction }: ActionBarProps): React.JSX.Eleme
         }
         if (move.t === "confirmTrade") {
           return (
-            <Button key={`c${String(index)}`} intent="primary" onClick={() => { onAction(move); }}>
+            <Button
+              key={`c${String(index)}`}
+              intent="primary"
+              onClick={() => {
+                onAction(move);
+              }}
+            >
               Trade with {names[move.with]}
             </Button>
           );
         }
         if (move.t === "cancelTrade") {
           return (
-            <Button key={`x${String(index)}`} intent="ghost" onClick={() => { onAction(move); }}>
+            <Button
+              key={`x${String(index)}`}
+              intent="ghost"
+              onClick={() => {
+                onAction(move);
+              }}
+            >
               Withdraw offer
             </Button>
           );
@@ -456,7 +492,9 @@ function StealControls({ view, onAction }: ActionBarProps): React.JSX.Element {
       {targets.map((target) => (
         <Button
           key={target}
-          onClick={() => { onAction({ t: "steal", player: view.you, target }); }}
+          onClick={() => {
+            onAction({ t: "steal", player: view.you, target });
+          }}
           hint={`${String(view.players[target]?.handSize ?? 0)} cards`}
         >
           <span className="flex items-center gap-2">
@@ -484,7 +522,11 @@ function RoadBuildingControls({ view, onAction }: ActionBarProps): React.JSX.Ele
         {view.phase.remaining === 1 ? "" : "s"} on the board.
       </Hint>
       {stop !== undefined && (
-        <Button onClick={() => { onAction(stop); }}>
+        <Button
+          onClick={() => {
+            onAction(stop);
+          }}
+        >
           Nowhere left to build — continue
         </Button>
       )}
@@ -555,16 +597,16 @@ function Picker({
                 <ResourceIcon kind={kind} className="h-3.5 w-3.5" />
                 {kind}
                 {ceiling !== undefined && (
-                  <span className="font-num text-[10px] text-ink-700">
-                    ({ceiling})
-                  </span>
+                  <span className="font-num text-[10px] text-ink-700">({ceiling})</span>
                 )}
               </span>
               <Stepper
                 label={`one fewer ${kind}`}
                 disabled={value[kind] <= 0}
                 reason={`No ${kind} selected`}
-                onClick={() => { onChange({ ...value, [kind]: value[kind] - 1 }); }}
+                onClick={() => {
+                  onChange({ ...value, [kind]: value[kind] - 1 });
+                }}
               >
                 −
               </Stepper>
@@ -575,7 +617,9 @@ function Picker({
                 label={`one more ${kind}`}
                 disabled={atMax}
                 reason={`You only hold ${String(ceiling ?? 0)} ${kind}`}
-                onClick={() => { onChange({ ...value, [kind]: value[kind] + 1 }); }}
+                onClick={() => {
+                  onChange({ ...value, [kind]: value[kind] + 1 });
+                }}
               >
                 +
               </Stepper>
@@ -627,9 +671,7 @@ function Disclosure({
     <details className="group rounded-card border border-surface-600 bg-surface-700/60">
       <summary className="flex cursor-pointer items-center justify-between px-2.5 py-1.5 text-xs text-ink-300 marker:content-[''] hover:text-ink-100">
         <span>{label}</span>
-        {hint !== undefined && (
-          <span className="text-[10px] text-ink-700">{hint}</span>
-        )}
+        {hint !== undefined && <span className="text-[10px] text-ink-700">{hint}</span>}
       </summary>
       <div className="border-t border-surface-600 p-1.5">{children}</div>
     </details>
@@ -651,7 +693,9 @@ function Summary({ counts }: { readonly counts: ResourceCounts }): React.JSX.Ele
   );
 }
 
-function costOf(kind: "road" | "settlement" | "city"): readonly (readonly [string, number])[] {
+function costOf(
+  kind: "road" | "settlement" | "city",
+): readonly (readonly [string, number])[] {
   return RESOURCE_KINDS.flatMap((resource) => {
     const amount = COSTS[kind][resource];
     return amount > 0 ? [[resource, amount] as const] : [];

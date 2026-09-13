@@ -61,11 +61,7 @@ export function Scene({
       <hemisphereLight args={["#cfe4ff", "#3a2f26", 0.55]} />
 
       <directionalLight
-        position={[
-          bounds.centre[0] + 7,
-          12,
-          bounds.centre[2] + 5,
-        ]}
+        position={[bounds.centre[0] + 7, 12, bounds.centre[2] + 5]}
         intensity={2.1}
         color="#fff2dc"
         castShadow

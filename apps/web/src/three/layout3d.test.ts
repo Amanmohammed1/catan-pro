@@ -87,8 +87,7 @@ describe("the hex outline", () => {
       const [nx, , nz] = nodePosition(id);
       const matched = offsets.some(
         ([ox, oz]) =>
-          Math.abs(centre[0] + ox - nx) < 1e-9 &&
-          Math.abs(centre[2] + oz - nz) < 1e-9,
+          Math.abs(centre[0] + ox - nx) < 1e-9 && Math.abs(centre[2] + oz - nz) < 1e-9,
       );
       expect(matched).toBe(true);
     }
