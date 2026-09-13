@@ -8,7 +8,7 @@ import {
   type PlayerId,
   type ResourceCounts,
 } from "@hexport/engine";
-import type { WireView } from "@hexport/protocol";
+import type { ChatLine, WireView } from "@hexport/protocol";
 
 /**
  * What the game screen needs, however the game is being played.
@@ -30,7 +30,7 @@ export interface GameSession {
   /** Present online only. */
   readonly deadline?: number | null;
   readonly onChat?: ((text: string) => void) | undefined;
-  readonly chat?: readonly { from: string; text: string; at: number }[];
+  readonly chat?: readonly ChatLine[] | undefined;
 }
 
 export function seatColors(view: WireView): string[] {
