@@ -20,7 +20,6 @@ import { Water } from "./Water.js";
 import { EdgePlacements, NodePlacements } from "./Placement.js";
 import { FrameMeter, type FrameStats } from "./FrameMeter.js";
 import { boardBounds } from "./layout3d.js";
-import { SEAT_COLORS } from "./palette.js";
 
 /**
  * The 3D board.

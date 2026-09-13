@@ -101,7 +101,7 @@ export function drive(el: HTMLElement): boolean {
     const plus = [...el.querySelectorAll("button")].find(
       (b) =>
         (b.getAttribute("aria-label") ?? "").startsWith("one more") &&
-        !(b as HTMLButtonElement).disabled,
+        !b.disabled,
     );
     if (plus !== undefined) {
       click(plus);
