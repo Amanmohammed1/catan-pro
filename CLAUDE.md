@@ -2,6 +2,10 @@
 
 Read this before every task. These rules are not negotiable.
 
+**New session?** Read `docs/HANDOVER.md` first. This file says what the rules
+are; that one says what is actually built, what is missing, and what has already
+gone wrong once.
+
 ## What we are building
 
 A web-based, online multiplayer hex-trading board game. Base game plus expansion
@@ -38,6 +42,12 @@ the _expression_ (art, text, name, logo) is not ours to copy.
    Tests fuzz from it. The reducer rejects anything not in it. If you find
    yourself writing a legality check in the UI or the server, stop — it belongs
    in the engine.
+
+   Online, the client cannot run it: a redacted view knows neither the deck nor
+   the other hands nor the generator state. The server computes the list and
+   sends it in `WireView.legalMoves`. One documented exception to enumeration,
+   `offerTrade`, is validated by the reducer instead — ADR 0003.
+
 4. **Determinism.** All randomness comes from a seeded PRNG stored inside
    `GameState`. Same seed + same action list = byte-identical state. Always.
 5. **Hidden information is redacted server-side.** `playerView(state, playerId)`
@@ -59,20 +69,26 @@ the _expression_ (art, text, name, logo) is not ours to copy.
 
 ```
 apps/
-  web/            React + Vite + react-three-fiber client
-  server/         Node + ws + Fastify, authoritative
-  bot-runner/     headless self-play harness
+  web/            React + Vite + react-three-fiber client        [exists]
+  server/         Node + ws + Fastify, authoritative             [exists]
+  bot-runner/     headless self-play harness                     [exists]
 packages/
-  engine/         PURE. rules, state, geometry, legalMoves, reducers
-  protocol/       zod schemas for Command / Event / StateView
-  scenarios/      data-driven board + rule definitions (JSON)
-  ui/             shared DOM components
-  assets/         glTF models, textures, audio (CC0 / original only)
+  engine/         PURE. rules, state, geometry, legalMoves       [exists]
+  protocol/       zod schemas for the wire format                [exists]
+  scenarios/      data-driven board definitions (JSON)           [exists]
+  ui/             shared DOM components                          [not yet]
+  assets/         glTF models, textures, audio (CC0 / original)  [not yet]
 docs/
-  rules/          official rulebook PDFs (reference only, gitignored)
+  HANDOVER.md     state of the project, read this first
+  rules/          rulebook PDFs (reference only, gitignored)
   adr/            architecture decision records
   milestones/     one file per milestone, with acceptance criteria
 ```
+
+Web client internals: `src/three/` the 3D board, `src/ui/` interface
+components, `src/game/` screen composition and hot-seat, `src/net/` the socket
+client and lobby. UI components live in `apps/web/src/ui/` rather than
+`packages/ui/` until a second client needs them.
 
 ## Engine internals
 
@@ -174,6 +190,60 @@ animation that lands on the server's result — it never generates the number.
   bank never negative, piece stock never negative, VP recomputable from scratch.
 - `pnpm fuzz` runs N headless random-legal games and must exit clean.
 - `playwright` for one end-to-end happy-path game across 3 browser contexts.
+
+## Commands
+
+```bash
+pnpm install
+pnpm --filter @hexport/server dev   # game server on :8787
+pnpm dev                            # client on :5173, proxies /ws
+
+pnpm verify                         # lint, typecheck, purity guards, both lanes
+pnpm test                           # fast lane (~11s)
+pnpm test:slow                      # whole-game runs over real sockets (~80s)
+pnpm fuzz                           # 10,000 self-play games (~114s)
+pnpm fuzz --games 500 --players 3
+```
+
+Client modes, by query string: default is online, `?hotseat=1` plays every seat
+on one screen, `?debug=1` is the M0 geometry renderer.
+
+Two browser _windows_ for two players. Tabs share a session, windows do not.
+
+`pnpm verify` must pass before a milestone is done. It runs both purity guards:
+one asserts the engine declares no runtime dependencies, the other asserts the
+lint rule enforcing that still _reports_. The second exists because the rule was
+once silently enforcing nothing.
+
+## Pinned versions, and why
+
+Check the registry before changing any of these. Three are pinned below latest
+on purpose:
+
+| Package          | Pinned | Why not latest                                            |
+| ---------------- | ------ | --------------------------------------------------------- |
+| typescript       | 6.0.3  | typescript-eslint 8.70.0 caps at `<6.1.0` (ADR 0002)      |
+| react, react-dom | 19.2.8 | react-three-fiber 9.7.0 caps at `<19.3`                   |
+| r3f-perf         | absent | still needs drei 9 / React 18; see `three/FrameMeter.tsx` |
+
+Otherwise current: three 0.186, @react-three/fiber 9.7, drei 10.7.8, vite 8.3,
+vitest 5, eslint 10.10, tailwindcss 4.3.3, zod 4.6.2, fastify 5.12.4, ws 8.21.3,
+drizzle-orm 0.45.2, pnpm 12.4.1, node >= 22.13.
+
+## Conventions
+
+- **Test lanes.** Anything that plays a whole game or spawns a process is named
+  `*.slow.test.ts` and runs in `pnpm test:slow`. The fast lane stays usable.
+- **Test hooks are data attributes**, never class names: `data-prompt`,
+  `data-panel`, `data-placement`, `data-winner`. Styling changes must not break
+  tests.
+- **Every disabled control says why**, via `title`. A test enforces it.
+- **Colour is never the only signal.** Resources carry a glyph, players carry a
+  name. Check `prefers-reduced-motion` in anything that animates.
+- **Every legal move is reachable from the DOM**, not only by clicking the 3D
+  board. `PlacementList` is that route, and the UI tests drive the game through
+  it — so the keyboard and screen-reader path is exercised on every run.
+- Design tokens live in `apps/web/src/theme.css`. No component invents a colour.
 
 ## Working style
 
