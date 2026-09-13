@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { hexCornerOffsets, TILE_THICKNESS } from "./layout3d.js";
+import { hexCornerOffsets, TILE_BEVEL, TILE_THICKNESS } from "./layout3d.js";
 
 /**
  * Shared geometries.
@@ -27,17 +27,20 @@ export function createHexTileGeometry(): THREE.BufferGeometry {
   });
   shape.closePath();
 
+  // The bevel adds its thickness to both faces, so the extruded core is thinner
+  // by two bevels and the whole slab measures exactly TILE_THICKNESS.
   const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth: TILE_THICKNESS,
+    depth: TILE_THICKNESS - 2 * TILE_BEVEL,
     bevelEnabled: true,
-    bevelThickness: 0.02,
-    bevelSize: 0.02,
+    bevelThickness: TILE_BEVEL,
+    bevelSize: TILE_BEVEL,
     bevelSegments: 2,
   });
 
-  // Extrude builds in XY; lay it flat so the board sits in XZ with Y up.
+  // Extrude builds in XY from z = -bevel; lay it flat (XZ, Y up) and lift it so
+  // the slab spans y = 0 to y = TILE_THICKNESS, which is BOARD_TOP.
   geometry.rotateX(-Math.PI / 2);
-  geometry.translate(0, TILE_THICKNESS / 2, 0);
+  geometry.translate(0, TILE_BEVEL, 0);
   geometry.computeVertexNormals();
   return geometry;
 }

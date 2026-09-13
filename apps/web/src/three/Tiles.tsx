@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import type { BoardGraph, TileId } from "@hexport/engine";
 import { createHexTileGeometry } from "./geometries.js";
-import { orderedTileIds, tilePosition } from "./layout3d.js";
+import { BOARD_TOP, orderedTileIds, tilePosition } from "./layout3d.js";
 import { color, TERRAIN_COLOR } from "./palette.js";
 
 /**
@@ -87,7 +87,7 @@ function TileHalo({
   readonly z: number;
 }): React.JSX.Element {
   return (
-    <mesh position={[x, 0.13, z]} rotation={[-Math.PI / 2, 0, 0]}>
+    <mesh position={[x, BOARD_TOP + 0.01, z]} rotation={[-Math.PI / 2, 0, 0]}>
       <ringGeometry args={[0.64, 0.86, 6]} />
       <meshBasicMaterial
         color="#ffe9a8"

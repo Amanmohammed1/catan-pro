@@ -10,7 +10,7 @@ import {
 export type OrbitHandle = React.ComponentRef<typeof OrbitControls>;
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import type { BoardBounds } from "./layout3d.js";
+import { BOARD_TOP, cameraPose, type BoardBounds } from "./layout3d.js";
 
 /**
  * Lighting, camera and controls.
@@ -28,6 +28,29 @@ export interface CameraHandle {
   reset: () => void;
 }
 
+/**
+ * Put the camera where the whole board fits the current viewport.
+ *
+ * Shared by the first framing and the "Reset view" button, so both agree on what
+ * "the whole board" means at any window shape, a phone included.
+ */
+export function frameCamera(
+  camera: THREE.Camera,
+  controls: OrbitHandle | null,
+  bounds: BoardBounds,
+): void {
+  const aspect = camera instanceof THREE.PerspectiveCamera ? camera.aspect : 1.5;
+  const fov = camera instanceof THREE.PerspectiveCamera ? camera.fov : undefined;
+  const pose = cameraPose(bounds, aspect, fov);
+
+  camera.position.set(...pose.position);
+  camera.lookAt(...pose.target);
+  if (controls !== null) {
+    controls.target.set(...pose.target);
+    controls.update();
+  }
+}
+
 export function Scene({
   bounds,
   controlsRef,
@@ -35,27 +58,31 @@ export function Scene({
   readonly bounds: BoardBounds;
   readonly controlsRef: React.RefObject<OrbitHandle | null>;
 }): React.JSX.Element {
-  const { camera } = useThree();
+  const camera = useThree((s) => s.camera);
+  const aspect = useThree((s) => s.size.width / Math.max(1, s.size.height));
   const target = useMemo(
     () => new THREE.Vector3(bounds.centre[0], 0, bounds.centre[2]),
     [bounds],
   );
 
-  // Frame the board on first load and whenever a different board arrives.
+  // How far away "the whole board" is at this window shape. Zoom limits and fog
+  // are measured from it, so a tall phone view is not clamped or fogged out.
+  const fitDistance = useMemo(() => {
+    const pose = cameraPose(bounds, aspect);
+    const [px, py, pz] = pose.position;
+    const [tx, ty, tz] = pose.target;
+    return Math.hypot(px - tx, py - ty, pz - tz);
+  }, [bounds, aspect]);
+
+  // Frame the board on first load, on a different board, and when the window
+  // changes shape.
   useEffect(() => {
-    const distance = Math.max(9, bounds.radius * 2.15);
-    camera.position.set(
-      bounds.centre[0],
-      distance * 0.82,
-      bounds.centre[2] + distance * 0.72,
-    );
-    camera.lookAt(target);
-    controlsRef.current?.target.copy(target);
-    controlsRef.current?.update();
-  }, [bounds, camera, target, controlsRef]);
+    frameCamera(camera, controlsRef.current, bounds);
+  }, [bounds, camera, aspect, controlsRef]);
 
   return (
     <>
+      <fog attach="fog" args={["#0d1b28", fitDistance * 1.6, fitDistance * 3.2]} />
       <Environment preset="sunset" environmentIntensity={0.55} />
 
       <hemisphereLight args={["#cfe4ff", "#3a2f26", 0.55]} />
@@ -85,7 +112,7 @@ export function Scene({
       </directionalLight>
 
       <ContactShadows
-        position={[bounds.centre[0], 0.12, bounds.centre[2]]}
+        position={[bounds.centre[0], BOARD_TOP + 0.002, bounds.centre[2]]}
         scale={bounds.radius * 3}
         resolution={1024}
         blur={2.4}
@@ -106,8 +133,8 @@ export function Scene({
         // unreadable and are easy to reach by accident on a trackpad.
         minPolarAngle={0.25}
         maxPolarAngle={Math.PI / 2.35}
-        minDistance={Math.max(5, bounds.radius * 0.9)}
-        maxDistance={bounds.radius * 4}
+        minDistance={Math.max(4, bounds.radius * 0.8)}
+        maxDistance={Math.max(bounds.radius * 4, fitDistance * 1.35)}
         // Pan across the table, not up out of it.
         screenSpacePanning={false}
         makeDefault

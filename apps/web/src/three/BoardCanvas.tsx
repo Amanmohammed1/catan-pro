@@ -10,7 +10,7 @@ import type {
   PlayerId,
   TileId,
 } from "@hexport/engine";
-import { Scene, type OrbitHandle } from "./Scene.js";
+import { frameCamera, Scene, type OrbitHandle } from "./Scene.js";
 import { Tiles } from "./Tiles.js";
 import { Roads, Buildings } from "./Pieces.js";
 import { NumberTokens } from "./NumberTokens.js";
@@ -19,7 +19,7 @@ import { Harbors } from "./Harbors.js";
 import { Water } from "./Water.js";
 import { EdgePlacements, NodePlacements } from "./Placement.js";
 import { FrameMeter, type FrameStats } from "./FrameMeter.js";
-import { boardBounds } from "./layout3d.js";
+import { boardBounds, CAMERA_FOV } from "./layout3d.js";
 
 /**
  * The 3D board.
@@ -78,13 +78,12 @@ export function BoardCanvas({
           powerPreference: "high-performance",
           toneMapping: THREE.ACESFilmicToneMapping,
         }}
-        camera={{ fov: 42, near: 0.5, far: 120 }}
+        camera={{ fov: CAMERA_FOV, near: 0.5, far: 200 }}
         // Decorative: the board is described in text elsewhere for anyone who
         // cannot see it, and every move is reachable from the DOM controls.
         aria-hidden="true"
       >
         <color attach="background" args={["#0d1b28"]} />
-        <fog attach="fog" args={["#0d1b28", bounds.radius * 3, bounds.radius * 7]} />
 
         <Suspense fallback={null}>
           <Scene bounds={bounds} controlsRef={controls} />
@@ -129,17 +128,9 @@ export function BoardCanvas({
 
       <CameraControls
         onReset={() => {
-          const bounds3 = bounds;
-          const distance = Math.max(9, bounds3.radius * 2.15);
           const current = controls.current;
           if (current === null) return;
-          current.object.position.set(
-            bounds3.centre[0],
-            distance * 0.82,
-            bounds3.centre[2] + distance * 0.72,
-          );
-          current.target.set(bounds3.centre[0], 0, bounds3.centre[2]);
-          current.update();
+          frameCamera(current.object, current, bounds);
         }}
       />
 

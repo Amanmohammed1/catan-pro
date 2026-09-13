@@ -5,14 +5,21 @@
  * because PLAN.md asks for it and because a flat view of the graph is still the
  * fastest way to debug a rules problem. It does not share the game's design
  * system on purpose: nothing here should constrain the real interface.
+ *
+ * Every selector is scoped under .debug-root. This file once styled `body`
+ * directly, and because it is unlayered CSS it beat the design system's
+ * layered base on every screen: black text on dark panels, a monospace game.
+ * App.tsx also loads the debug view lazily, so this sheet only ships there.
  */
 
-* {
+.debug-root,
+.debug-root * {
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
+.debug-root {
+  display: flex;
+  min-height: 100vh;
   font:
     13px/1.45 ui-monospace,
     SFMono-Regular,
@@ -22,12 +29,7 @@ body {
   color: #1a1a1a;
 }
 
-.debug-root {
-  display: flex;
-  min-height: 100vh;
-}
-
-.panel {
+.debug-root .panel {
   width: 270px;
   flex: none;
   padding: 16px;
@@ -35,31 +37,31 @@ body {
   background: #fbfaf7;
 }
 
-.panel h1 {
+.debug-root .panel h1 {
   margin: 0;
   font-size: 15px;
 }
 
-.panel .sub {
+.debug-root .panel .sub {
   margin: 4px 0 16px;
   color: #6b6b6b;
 }
 
-.panel label {
+.debug-root .panel label {
   display: block;
   margin-bottom: 10px;
 }
 
-.panel label.check {
+.debug-root .panel label.check {
   display: flex;
   align-items: center;
   gap: 6px;
   margin-bottom: 4px;
 }
 
-.panel select,
-.panel input[type="text"],
-.panel input:not([type]) {
+.debug-root .panel select,
+.debug-root .panel input[type="text"],
+.debug-root .panel input:not([type]) {
   width: 100%;
   margin-top: 3px;
   padding: 4px;
@@ -68,13 +70,13 @@ body {
   background: #fff;
 }
 
-.panel .row {
+.debug-root .panel .row {
   display: flex;
   gap: 6px;
   margin-bottom: 12px;
 }
 
-.panel button {
+.debug-root .panel button {
   flex: 1;
   padding: 5px;
   font: inherit;
@@ -83,43 +85,43 @@ body {
   background: #efece4;
 }
 
-.panel button:hover {
+.debug-root .panel button:hover {
   background: #e4e0d5;
 }
 
-fieldset {
+.debug-root fieldset {
   margin: 0 0 14px;
   padding: 8px 10px;
   border: 1px solid #d8d5cc;
 }
 
-legend {
+.debug-root legend {
   padding: 0 4px;
   color: #6b6b6b;
 }
 
-.stats {
+.debug-root .stats {
   margin: 0;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 1px 8px;
 }
 
-.stats > div {
+.debug-root .stats > div {
   display: contents;
 }
 
-.stats dt {
+.debug-root .stats dt {
   color: #6b6b6b;
 }
 
-.stats dd {
+.debug-root .stats dd {
   margin: 0;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-.hovered {
+.debug-root .hovered {
   margin-top: 14px;
   padding: 8px;
   white-space: pre-wrap;
@@ -128,7 +130,7 @@ legend {
   border: 1px solid #d8d5cc;
 }
 
-.stage {
+.debug-root .stage {
   flex: 1;
   display: flex;
   align-items: center;
@@ -137,12 +139,12 @@ legend {
   min-width: 0;
 }
 
-.board {
+.debug-root .board {
   width: 100%;
   height: calc(100vh - 32px);
 }
 
-.error {
+.debug-root .error {
   max-width: 640px;
   padding: 12px;
   white-space: pre-wrap;
@@ -151,25 +153,25 @@ legend {
   border: 1px solid #f0c0c8;
 }
 
-text {
+.debug-root text {
   text-anchor: middle;
   dominant-baseline: central;
   pointer-events: none;
   font-family: ui-monospace, Menlo, monospace;
 }
 
-text.token {
+.debug-root text.token {
   font-size: 0.3px;
   font-weight: 700;
 }
 
-text.port {
+.debug-root text.port {
   font-size: 0.18px;
   fill: #b00020;
   font-weight: 700;
 }
 
-text.tiny {
+.debug-root text.tiny {
   font-size: 0.12px;
   fill: #333;
 }

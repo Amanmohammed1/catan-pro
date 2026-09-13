@@ -23,9 +23,68 @@ import {
 
 export type Vec3 = readonly [number, number, number];
 
-/** Height of the tile slab. Everything else is measured from its top face. */
+/**
+ * Height of the tile slab, bevel included. The slab runs from y = 0 to its top
+ * face at BOARD_TOP, and every piece, token and marker stands on that face.
+ *
+ * These were once out of step: the slab's top sat at 0.35 while pieces stood at
+ * 0.11, so tokens and roads rendered inside the tiles. `geometries.test.ts`
+ * measures the real mesh against this constant so that cannot recur.
+ */
 export const TILE_THICKNESS = 0.22;
-export const BOARD_TOP = TILE_THICKNESS / 2;
+export const TILE_BEVEL = 0.02;
+export const BOARD_TOP = TILE_THICKNESS;
+
+/** Default camera field of view, degrees, vertical. */
+export const CAMERA_FOV = 42;
+
+/**
+ * Where the camera looks from: straight "south" of the board, tilted about 41°
+ * from vertical. Close enough to overhead to read every token, low enough that
+ * the pieces read as objects standing on the table.
+ */
+const CAMERA_TILT = Math.atan2(0.72, 0.82);
+
+/** Room kept around the island for harbours and the sea frame. */
+const FRAME_MARGIN = 1.1;
+
+export interface CameraPose {
+  readonly position: Vec3;
+  readonly target: Vec3;
+}
+
+/**
+ * A camera pose that fits the whole board in view.
+ *
+ * Treats the board as a flat disc seen at CAMERA_TILT: its width must fit the
+ * horizontal field of view and its foreshortened depth the vertical one. The
+ * near rim sits closer to the lens than the centre, so the distance is padded by
+ * how far it comes forward. Pure arithmetic, tested by projecting real points.
+ */
+export function cameraPose(
+  bounds: BoardBounds,
+  aspect: number,
+  fovDeg = CAMERA_FOV,
+): CameraPose {
+  const radius = bounds.radius + FRAME_MARGIN;
+  const tanV = Math.tan((fovDeg * Math.PI) / 360);
+  const tanH = tanV * Math.max(aspect, 0.1);
+
+  const byWidth = radius / tanH;
+  const byDepth = (radius * Math.cos(CAMERA_TILT)) / tanV;
+  const distance =
+    Math.max(byWidth, byDepth) * 1.04 + radius * Math.sin(CAMERA_TILT);
+
+  const [cx, , cz] = bounds.centre;
+  return {
+    position: [
+      cx,
+      distance * Math.cos(CAMERA_TILT),
+      cz + distance * Math.sin(CAMERA_TILT),
+    ],
+    target: [cx, 0, cz],
+  };
+}
 
 /** Hex corner offsets from a tile centre, in the XZ plane. */
 export function hexCornerOffsets(): readonly (readonly [number, number])[] {
