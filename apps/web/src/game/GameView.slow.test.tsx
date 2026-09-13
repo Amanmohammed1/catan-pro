@@ -1,4 +1,9 @@
 // @vitest-environment jsdom
+import { vi } from "vitest";
+
+// jsdom has no WebGL; see stubCanvas for why this is the right split.
+vi.mock("../three/BoardCanvas.js", () => ({ BoardCanvas: () => null }));
+
 import { describe, it, expect, afterEach } from "vitest";
 import { act } from "react";
 import type { Root } from "react-dom/client";

@@ -1,4 +1,9 @@
 // @vitest-environment jsdom
+import { vi } from "vitest";
+
+// jsdom has no WebGL; see stubCanvas for why this is the right split.
+vi.mock("../three/BoardCanvas.js", () => ({ BoardCanvas: () => null }));
+
 import { it } from "vitest";
 import { writeFileSync } from "node:fs";
 import { act } from "react";
