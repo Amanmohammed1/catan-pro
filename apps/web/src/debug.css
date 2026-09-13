@@ -1,0 +1,176 @@
+/*
+ * Styles for the M0 geometry renderer at ?debug=1.
+ *
+ * Deliberately plain and self-contained. It is a developer tool, kept alive
+ * because PLAN.md asks for it and because a flat view of the graph is still the
+ * fastest way to debug a rules problem. It does not share the game's design
+ * system on purpose: nothing here should constrain the real interface.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font:
+    13px/1.45 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  background: #f5f4f0;
+  color: #1a1a1a;
+}
+
+.debug-root {
+  display: flex;
+  min-height: 100vh;
+}
+
+.panel {
+  width: 270px;
+  flex: none;
+  padding: 16px;
+  border-right: 1px solid #d8d5cc;
+  background: #fbfaf7;
+}
+
+.panel h1 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.panel .sub {
+  margin: 4px 0 16px;
+  color: #6b6b6b;
+}
+
+.panel label {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.panel label.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.panel select,
+.panel input[type="text"],
+.panel input:not([type]) {
+  width: 100%;
+  margin-top: 3px;
+  padding: 4px;
+  font: inherit;
+  border: 1px solid #c8c4b8;
+  background: #fff;
+}
+
+.panel .row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.panel button {
+  flex: 1;
+  padding: 5px;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid #c8c4b8;
+  background: #efece4;
+}
+
+.panel button:hover {
+  background: #e4e0d5;
+}
+
+fieldset {
+  margin: 0 0 14px;
+  padding: 8px 10px;
+  border: 1px solid #d8d5cc;
+}
+
+legend {
+  padding: 0 4px;
+  color: #6b6b6b;
+}
+
+.stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1px 8px;
+}
+
+.stats > div {
+  display: contents;
+}
+
+.stats dt {
+  color: #6b6b6b;
+}
+
+.stats dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.hovered {
+  margin-top: 14px;
+  padding: 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: #efece4;
+  border: 1px solid #d8d5cc;
+}
+
+.stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  min-width: 0;
+}
+
+.board {
+  width: 100%;
+  height: calc(100vh - 32px);
+}
+
+.error {
+  max-width: 640px;
+  padding: 12px;
+  white-space: pre-wrap;
+  color: #b00020;
+  background: #fdf0f2;
+  border: 1px solid #f0c0c8;
+}
+
+text {
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+text.token {
+  font-size: 0.3px;
+  font-weight: 700;
+}
+
+text.port {
+  font-size: 0.18px;
+  fill: #b00020;
+  font-weight: 700;
+}
+
+text.tiny {
+  font-size: 0.12px;
+  fill: #333;
+}
+
