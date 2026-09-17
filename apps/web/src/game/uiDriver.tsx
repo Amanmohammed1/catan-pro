@@ -8,6 +8,10 @@ import { HotSeatGame } from "./HotSeatGame.js";
  * `drive` takes whatever the screen currently offers and clicks it, preferring
  * progress. It is the UI equivalent of the random-legal bot: if any phase fails
  * to expose a usable control, it returns false and the test fails.
+ *
+ * Controls are found by `data-action`, never by label or class name, so
+ * restyling and rewording the interface cannot break the tests (CLAUDE.md,
+ * Conventions).
  */
 
 export function mountGame(
@@ -36,24 +40,49 @@ export function button(el: HTMLElement, label: string): HTMLButtonElement | unde
   );
 }
 
+/** A control by its data-action, within the controls panel. */
+export function action(el: HTMLElement, name: string): HTMLButtonElement | null {
+  return panel(el).querySelector<HTMLButtonElement>(`button[data-action="${name}"]`);
+}
+
 export function text(el: HTMLElement): string {
   return el.textContent ?? "";
 }
 
-/** Drive the whole setup phase by clicking the first highlighted target. */
+/**
+ * The controls panel, excluding the game log.
+ *
+ * Matching phase names against the whole screen looks fine until the log fills
+ * up with the history of the game: "Discard required: Player 3" scrolls past and
+ * every check for "Discard" starts matching forever. Scope to the panel that
+ * actually reflects the current phase.
+ */
+export function panel(el: HTMLElement): HTMLElement {
+  return el.querySelector<HTMLElement>('[data-panel="actions"]') ?? el;
+}
+
+/** The phase the screen is currently showing. */
+export function phase(el: HTMLElement): string {
+  return el.querySelector("[data-prompt]")?.getAttribute("data-prompt") ?? "";
+}
+
+/**
+ * The first legal placement offered in the DOM.
+ *
+ * Since the board became a WebGL canvas, clicking a mesh is unavailable to
+ * jsdom — and to anyone using a keyboard. Both use the placement list, which is
+ * the accessible route to exactly the same moves.
+ */
+export function firstPlacement(el: HTMLElement): HTMLButtonElement | null {
+  return el.querySelector<HTMLButtonElement>("button[data-placement]");
+}
+
+/** Drive the whole setup phase by taking the first offered placement. */
 export function completeSetupInUi(el: HTMLElement): void {
   for (let i = 0; i < 60; i++) {
-    const node = el.querySelector(".node-target");
-    const edge = el.querySelector(".edge-target");
-    if (node !== null) {
-      click(node);
-      continue;
-    }
-    if (edge !== null) {
-      click(edge);
-      continue;
-    }
-    return;
+    const placement = firstPlacement(el);
+    if (placement === null) return;
+    click(placement);
   }
   throw new Error("setup did not finish");
 }
@@ -70,33 +99,34 @@ export function completeSetupInUi(el: HTMLElement): void {
  * experience.
  */
 export function drive(el: HTMLElement): boolean {
-  const tryBuild = (label: string): boolean => {
-    const b = button(el, label);
-    if (b === undefined || b.disabled) return false;
-    click(b);
-    const target = el.querySelector(".node-target, .edge-target");
+  const take = (name: string): boolean => {
+    const control = action(el, name);
+    if (control === null || control.disabled) return false;
+    click(control);
+    return true;
+  };
+
+  const tryBuild = (name: string): boolean => {
+    const control = action(el, name);
+    if (control === null || control.disabled) return false;
+    click(control);
+    const target = firstPlacement(el);
     if (target === null) {
-      click(b); // nothing highlighted; switch the mode back off
+      click(control); // nothing offered; switch the mode back off
       return false;
     }
     click(target);
     return true;
   };
 
-  const roll = button(el, "Roll dice");
-  if (roll !== undefined) {
-    click(roll);
-    return true;
-  }
+  const here = phase(el);
 
-  if (text(el).includes("Discard")) {
-    const confirm = el.querySelector<HTMLButtonElement>(".actions button.primary");
-    if (confirm !== null && !confirm.disabled) {
-      click(confirm);
-      return true;
-    }
-    const plus = [...el.querySelectorAll(".picker-row button")].find(
-      (b) => b.textContent === "+" && !(b as HTMLButtonElement).disabled,
+  if (take("roll")) return true;
+
+  if (here === "discard") {
+    if (take("discard")) return true;
+    const plus = [...el.querySelectorAll("button")].find(
+      (b) => (b.getAttribute("aria-label") ?? "").startsWith("one more") && !b.disabled,
     );
     if (plus !== undefined) {
       click(plus);
@@ -104,67 +134,44 @@ export function drive(el: HTMLElement): boolean {
     }
   }
 
-  const tile = el.querySelector(".tile.targetable");
-  if (tile !== null) {
-    click(tile);
-    return true;
-  }
-
-  if (text(el).includes("Choose someone to rob")) {
-    const steal = el.querySelector(".actions button");
-    if (steal !== null) {
-      click(steal);
+  if (here === "moveRobber") {
+    const tile = firstPlacement(el);
+    if (tile !== null) {
+      click(tile);
       return true;
     }
   }
 
-  if (text(el).includes("free road")) {
-    const edge = el.querySelector(".edge-target");
+  if (here === "steal") {
+    if (take("steal")) return true;
+    if (take("continue")) return true;
+  }
+
+  if (here === "roadBuilding") {
+    const edge = firstPlacement(el);
     if (edge !== null) {
       click(edge);
       return true;
     }
-    const cont = button(el, "continue");
-    if (cont !== undefined) {
-      click(cont);
-      return true;
-    }
+    if (take("continue")) return true;
   }
 
-  if (text(el).includes("Trade and build")) {
-    if (tryBuild("City")) return true;
-    if (tryBuild("Settlement")) return true;
-    if (tryBuild("Road")) return true;
+  if (here === "tradeOffer") {
+    if (take("decline")) return true;
+    if (take("withdraw")) return true;
+  }
 
+  if (here === "main") {
+    if (tryBuild("build-city")) return true;
+    if (tryBuild("build-settlement")) return true;
+    if (tryBuild("build-road")) return true;
     // Convert surplus into something useful before giving up on the turn.
-    const bank = el.querySelector<HTMLElement>("details.trade");
-    if (bank !== null) {
-      (bank as HTMLDetailsElement).open = true;
-      const trade = bank.querySelector<HTMLButtonElement>(".grid button");
-      if (trade !== null) {
-        click(trade);
-        return true;
-      }
-    }
-
-    const end = button(el, "End turn");
-    if (end !== undefined) {
-      click(end);
-      return true;
-    }
+    if (take("bank-trade")) return true;
+    if (take("end-turn")) return true;
   }
 
-  const end = button(el, "End turn");
-  if (end !== undefined) {
-    click(end);
-    return true;
-  }
-
-  const cont = button(el, "continue");
-  if (cont !== undefined) {
-    click(cont);
-    return true;
-  }
+  if (take("end-turn")) return true;
+  if (take("continue")) return true;
 
   return false;
 }

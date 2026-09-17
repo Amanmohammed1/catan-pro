@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { GameScreen } from "../game/GameScreen.js";
 import type { GameSession } from "../game/session.js";
 import { Lobby } from "./Lobby.js";
+import { Wordmark } from "../ui/Wordmark.js";
 import { useConnection } from "./useConnection.js";
 
 /**
@@ -48,10 +49,14 @@ export function OnlineGame({
 
   if (net.status !== "online") {
     return (
-      <div className="centered">
-        <div className="panel-card">
-          <h1>hexport</h1>
-          <p className="sub">
+      <div className="grid min-h-screen place-items-center p-4">
+        <div className="panel w-full max-w-[340px] p-6 text-center">
+          <Wordmark size="lg" />
+          <p className="mt-3 flex items-center justify-center gap-2 text-xs text-ink-500">
+            <span
+              aria-hidden="true"
+              className="h-2 w-2 animate-pulse rounded-full bg-gold"
+            />
             {net.status === "reconnecting"
               ? "Connection lost. Reconnecting…"
               : "Connecting to the server…"}

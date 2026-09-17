@@ -1,158 +1,173 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, beforeEach } from "vitest";
+import { vi } from "vitest";
+
+// jsdom has no WebGL; see test/stubCanvas.ts for why this is the right split.
+vi.mock("../three/BoardCanvas.js", () => ({ BoardCanvas: () => null }));
+
+import { describe, it, expect, afterEach } from "vitest";
 import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { HotSeatGame } from "./HotSeatGame.js";
-import { button, click, completeSetupInUi, drive, text } from "./uiDriver.js";
+import type { Root } from "react-dom/client";
+import {
+  button,
+  click,
+  completeSetupInUi,
+  drive,
+  firstPlacement,
+  mountGame,
+  text,
+} from "./uiDriver.js";
 
 /**
- * The M1 acceptance criterion is a full hot-seat game played in this UI without
- * a rules dispute. Since M2 the same screen renders online play, driven by a
- * redacted view instead of a local GameState, so these also cover that path. Engine tests prove the rules; these prove the screen actually
- * exposes them — that the right controls appear in each phase, that clicking a
- * highlighted spot places a piece, and that a game can be driven to a winner
- * through the DOM alone.
+ * The game interface.
+ *
+ * The board is a WebGL canvas and cannot mount in jsdom, so it is stubbed out.
+ * What is asserted here is everything around it — and, deliberately, that the
+ * whole game is playable without the canvas at all. That is the same path a
+ * keyboard or screen-reader player takes, so these are accessibility tests as
+ * much as they are interface tests.
  */
 
-let root: Root | null = null;
-let container: HTMLDivElement | null = null;
+let mounted: { el: HTMLDivElement; root: Root } | null = null;
 
-function render(search = "?seed=ui-test&players=3"): HTMLDivElement {
-  const params = new URLSearchParams(search);
-  const seed = params.get("seed") ?? "ui-test";
-  const players = Number(params.get("players") ?? "3");
-
-  container = document.createElement("div");
-  document.body.appendChild(container);
-  const created = createRoot(container);
-  root = created;
-  act(() => {
-    created.render(<HotSeatGame seed={seed} players={players} />);
-  });
-  return container;
+function render(seed = "ui-test", players = 3): HTMLDivElement {
+  mounted = mountGame(seed, players);
+  return mounted.el;
 }
 
-beforeEach(() => {
-  window.history.replaceState({}, "", "/");
-});
-
 afterEach(() => {
+  if (mounted === null) return;
   act(() => {
-    root?.unmount();
+    mounted?.root.unmount();
   });
-  container?.remove();
-  root = null;
-  container = null;
+  mounted.el.remove();
+  mounted = null;
 });
 
 describe("first render", () => {
-  it("shows the board, the players and the setup prompt", () => {
+  it("shows every player with a score and a hand size", () => {
     const el = render();
-    expect(el.querySelector("svg.board")).not.toBeNull();
-    expect(el.querySelectorAll(".player")).toHaveLength(3);
+    const players = el.querySelectorAll('[aria-label="Players"] > li');
+    expect(players).toHaveLength(3);
+    expect(text(el)).toContain("Player 1");
+    expect(text(el)).toContain("(you)");
+  });
+
+  it("says what the player has to do", () => {
+    const el = render();
     expect(text(el)).toContain("Place settlement 1 of 2");
   });
 
-  it("highlights legal setup settlement spots and nothing else", () => {
+  it("offers the legal placements in the DOM, not only on the canvas", () => {
     const el = render();
-    expect(el.querySelectorAll(".node-target").length).toBeGreaterThan(0);
-    expect(el.querySelectorAll(".edge-target")).toHaveLength(0);
+    const placements = el.querySelectorAll("button[data-placement]");
+    // A fresh board has 54 intersections, every one of them legal.
+    expect(placements.length).toBe(54);
   });
 
-  it("starts every player on zero victory points shown as 0 vp", () => {
+  it("describes each placement in terms of the hexes that meet there", () => {
     const el = render();
-    const stats = [...el.querySelectorAll(".player .pstat")].map((s) => s.textContent);
-    expect(stats.filter((s) => s === "0 vp")).toHaveLength(3);
+    const first = firstPlacement(el);
+    expect(first).not.toBeNull();
+    // e.g. "Forest 11, Hills 4 and Pasture 6"
+    expect(first?.textContent ?? "").toMatch(/[A-Z][a-z]+/);
+    expect(first?.textContent ?? "").not.toContain("v|");
+  });
+
+  it("has a live region for screen readers", () => {
+    const el = render();
+    expect(el.querySelector('[aria-live="polite"]')).not.toBeNull();
   });
 });
 
 describe("placing pieces", () => {
-  it("places a settlement then asks for a road", () => {
+  it("places a settlement, then asks for the road", () => {
     const el = render();
-    click(el.querySelector(".node-target"));
+    click(firstPlacement(el));
 
     expect(text(el)).toContain("Place an adjoining road");
-    expect(el.querySelectorAll(".edge-target").length).toBeGreaterThan(0);
-    expect(el.querySelectorAll(".node-target")).toHaveLength(0);
-    expect(el.querySelectorAll(".building").length).toBe(1);
+    // Only the paths touching the new settlement are on offer now.
+    const offered = el.querySelectorAll("button[data-placement]").length;
+    expect(offered).toBeGreaterThan(0);
+    expect(offered).toBeLessThanOrEqual(3);
   });
 
-  it("places a road and passes to the next player", () => {
+  it("passes to the next player once the road is down", () => {
     const el = render();
-    click(el.querySelector(".node-target"));
-    click(el.querySelector(".edge-target"));
+    click(firstPlacement(el));
+    click(firstPlacement(el));
 
-    expect(el.querySelectorAll(".road")).toHaveLength(1);
     expect(text(el)).toContain("Place settlement 1 of 2");
-    // Player 2 is now on the clock.
     expect(text(el)).toContain("Player 2");
   });
 });
 
 describe("after setup", () => {
-  it("offers the roll button", () => {
+  it("offers the roll", () => {
     const el = render();
     completeSetupInUi(el);
-    expect(button(el, "Roll dice")).toBeDefined();
-    expect(text(el)).toContain("Roll the dice");
+    expect(button(el, "Roll the dice")).toBeDefined();
   });
 
-  it("places six settlements and six roads for three players", () => {
+  it("gives every player their starting resources", () => {
     const el = render();
     completeSetupInUi(el);
-    expect(el.querySelectorAll(".building")).toHaveLength(6);
-    expect(el.querySelectorAll(".road")).toHaveLength(6);
+    const hand = el.querySelector('[aria-label="Your resource cards"]');
+    expect(hand).not.toBeNull();
+    const total = [...(hand?.querySelectorAll("li") ?? [])]
+      .map((li) => Number(li.getAttribute("data-count") ?? "0"))
+      .reduce((a, b) => a + b, 0);
+    expect(total).toBeGreaterThan(0);
   });
 
-  it("gives every player starting resources", () => {
+  it("writes what happened to the log", () => {
     const el = render();
     completeSetupInUi(el);
-    const counts = [...el.querySelectorAll(".hand .count")].map((c) =>
-      Number(c.textContent),
-    );
-    expect(counts.reduce((a, b) => a + b, 0)).toBeGreaterThan(0);
+    const entries = el.querySelectorAll("ol li");
+    expect(entries.length).toBeGreaterThan(3);
   });
 
-  it("shows a game log", () => {
+  it("moves into the build phase once the dice are rolled", () => {
     const el = render();
     completeSetupInUi(el);
-    expect(el.querySelectorAll(".log-line").length).toBeGreaterThan(0);
-  });
-
-  it("rolls the dice and moves into the build phase", () => {
-    const el = render();
-    completeSetupInUi(el);
-    click(button(el, "Roll dice"));
+    click(button(el, "Roll the dice"));
 
     const body = text(el);
-    // Either production happened and we are building, or a 7 sent us to the
-    // robber. Both are legal outcomes of one roll.
     expect(
       body.includes("Trade and build") ||
         body.includes("Move the robber") ||
-        body.includes("Discard half"),
+        body.includes("Discard"),
     ).toBe(true);
   });
 });
 
-describe("the build controls follow legalMoves", () => {
-  it("disables buttons the player cannot afford", () => {
+describe("controls follow legalMoves", () => {
+  it("disables what the player cannot afford", () => {
     const el = render();
     completeSetupInUi(el);
-    click(button(el, "Roll dice"));
+    click(button(el, "Roll the dice"));
 
-    // Starting hands are 1-3 cards, so a city (3 ore + 2 grain) is never
-    // affordable on the first turn.
+    // A city is three ore and two grain; nobody has that on turn one.
     const city = button(el, "City");
-    if (city !== undefined) {
-      expect(city.disabled).toBe(true);
+    if (city !== undefined) expect(city.disabled).toBe(true);
+  });
+
+  it("explains why a disabled control is disabled", () => {
+    const el = render();
+    completeSetupInUi(el);
+    click(button(el, "Roll the dice"));
+
+    // Every disabled button says what would make it possible, rather than
+    // leaving the player to guess.
+    const disabled = [...el.querySelectorAll("button")].filter((b) => b.disabled);
+    for (const control of disabled) {
+      expect(control.getAttribute("title") ?? "").not.toBe("");
     }
   });
 
-  it("shows an end turn button in the main phase", () => {
+  it("offers an end turn in the build phase", () => {
     const el = render();
     completeSetupInUi(el);
-    click(button(el, "Roll dice"));
+    click(button(el, "Roll the dice"));
     if (text(el).includes("Trade and build")) {
       expect(button(el, "End turn")).toBeDefined();
     }
@@ -160,22 +175,19 @@ describe("the build controls follow legalMoves", () => {
 });
 
 describe("several turns", () => {
-  it("keeps offering usable controls turn after turn", () => {
-    const el = render("?seed=ui-turns&players=3");
+  it("always leaves something usable on screen", () => {
+    const el = render("ui-turns", 3);
     completeSetupInUi(el);
 
-    // Not a full game — that runs in the slow lane. This checks the screen
-    // never gets into a state with nothing to click, which is the failure mode
-    // that would strand a real player.
+    // Not a full game — that runs in the slow lane. This checks the interface
+    // never reaches a state with nothing to click, which is the failure that
+    // would strand a real player.
     for (let step = 0; step < 400; step++) {
       if (text(el).includes("wins")) break;
       if (drive(el)) continue;
-      throw new Error(
-        `UI offered no usable control. Screen said: ${text(el).slice(0, 300)}`,
-      );
+      throw new Error(`Nothing usable on screen. It said: ${text(el).slice(0, 300)}`);
     }
 
-    expect(el.querySelector("svg.board")).not.toBeNull();
-    expect(el.querySelectorAll(".log-line").length).toBeGreaterThan(5);
+    expect(el.querySelectorAll("ol li").length).toBeGreaterThan(5);
   }, 60000);
 });

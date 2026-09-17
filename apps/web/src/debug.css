@@ -1,0 +1,177 @@
+/*
+ * Styles for the M0 geometry renderer at ?debug=1.
+ *
+ * Deliberately plain and self-contained. It is a developer tool, kept alive
+ * because PLAN.md asks for it and because a flat view of the graph is still the
+ * fastest way to debug a rules problem. It does not share the game's design
+ * system on purpose: nothing here should constrain the real interface.
+ *
+ * Every selector is scoped under .debug-root. This file once styled `body`
+ * directly, and because it is unlayered CSS it beat the design system's
+ * layered base on every screen: black text on dark panels, a monospace game.
+ * App.tsx also loads the debug view lazily, so this sheet only ships there.
+ */
+
+.debug-root,
+.debug-root * {
+  box-sizing: border-box;
+}
+
+.debug-root {
+  display: flex;
+  min-height: 100vh;
+  font:
+    13px/1.45 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  background: #f5f4f0;
+  color: #1a1a1a;
+}
+
+.debug-root .panel {
+  width: 270px;
+  flex: none;
+  padding: 16px;
+  border-right: 1px solid #d8d5cc;
+  background: #fbfaf7;
+}
+
+.debug-root .panel h1 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.debug-root .panel .sub {
+  margin: 4px 0 16px;
+  color: #6b6b6b;
+}
+
+.debug-root .panel label {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.debug-root .panel label.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.debug-root .panel select,
+.debug-root .panel input[type="text"],
+.debug-root .panel input:not([type]) {
+  width: 100%;
+  margin-top: 3px;
+  padding: 4px;
+  font: inherit;
+  border: 1px solid #c8c4b8;
+  background: #fff;
+}
+
+.debug-root .panel .row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.debug-root .panel button {
+  flex: 1;
+  padding: 5px;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid #c8c4b8;
+  background: #efece4;
+}
+
+.debug-root .panel button:hover {
+  background: #e4e0d5;
+}
+
+.debug-root fieldset {
+  margin: 0 0 14px;
+  padding: 8px 10px;
+  border: 1px solid #d8d5cc;
+}
+
+.debug-root legend {
+  padding: 0 4px;
+  color: #6b6b6b;
+}
+
+.debug-root .stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1px 8px;
+}
+
+.debug-root .stats > div {
+  display: contents;
+}
+
+.debug-root .stats dt {
+  color: #6b6b6b;
+}
+
+.debug-root .stats dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.debug-root .hovered {
+  margin-top: 14px;
+  padding: 8px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: #efece4;
+  border: 1px solid #d8d5cc;
+}
+
+.debug-root .stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  min-width: 0;
+}
+
+.debug-root .board {
+  width: 100%;
+  height: calc(100vh - 32px);
+}
+
+.debug-root .error {
+  max-width: 640px;
+  padding: 12px;
+  white-space: pre-wrap;
+  color: #b00020;
+  background: #fdf0f2;
+  border: 1px solid #f0c0c8;
+}
+
+.debug-root text {
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+.debug-root text.token {
+  font-size: 0.3px;
+  font-weight: 700;
+}
+
+.debug-root text.port {
+  font-size: 0.18px;
+  fill: #b00020;
+  font-weight: 700;
+}
+
+.debug-root text.tiny {
+  font-size: 0.12px;
+  fill: #333;
+}

@@ -1,23 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  RESOURCE_KINDS,
-  emptyResources,
   totalResources,
   type Action,
   type EdgeId,
   type NodeId,
-  type PlayerId,
-  type ResourceCounts,
   type TileId,
 } from "@hexport/engine";
-import type { WireView } from "@hexport/protocol";
-import { BoardView } from "./BoardView.js";
-import { describeEvent } from "./describeEvent.js";
+import { BoardCanvas } from "../three/BoardCanvas.js";
+import { ActionBar, type BuildMode } from "../ui/ActionBar.js";
+import { Announcer } from "../ui/Announcer.js";
+import { Avatar } from "../ui/Avatar.js";
+import { Button } from "../ui/Button.js";
+import { Confetti } from "../ui/Confetti.js";
+import { Dice } from "../ui/Dice.js";
+import { HandDock } from "../ui/HandDock.js";
+import { LogPanel } from "../ui/LogPanel.js";
+import { PlacementList } from "../ui/PlacementList.js";
+import { PlayerStrip } from "../ui/PlayerStrip.js";
+import { Wordmark } from "../ui/Wordmark.js";
+import { useUi } from "../store/ui.js";
 import {
-  canOffer,
   describePrompt,
   playerNames,
-  portRates,
   seatColors,
   type GameSession,
 } from "./session.js";
@@ -25,14 +29,15 @@ import {
 /**
  * The game screen.
  *
- * Every control is derived from `view.legalMoves`. Nothing here decides whether
- * a move is allowed (CLAUDE.md golden rule 3) — online, the list is computed by
- * the server; hot-seat, by the engine locally. If a button is missing, the rules
- * say the move is illegal, and that is the bug to fix.
+ * The board is the largest thing on screen because it is what the game is
+ * about; everything else is arranged around it and stays out of its way.
+ * Players and the log sit on the left, the controls on the right where a
+ * right-handed player's attention already is, and the hand along the bottom.
+ * Below 900px the same pieces stack into one scrolling column.
+ *
+ * Every control is derived from `view.legalMoves` (CLAUDE.md golden rule 3).
+ * Online, the server computes that list; hot-seat, the engine does locally.
  */
-
-type BuildMode = "none" | "road" | "settlement" | "city";
-
 export function GameScreen({
   session,
 }: {
@@ -40,18 +45,34 @@ export function GameScreen({
 }): React.JSX.Element {
   const { board, view, log, dispatch } = session;
   const [mode, setMode] = useState<BuildMode>("none");
-  const [discard, setDiscard] = useState<ResourceCounts>(emptyResources());
-  const [showIds, setShowIds] = useState(false);
+  const showStats = useUi((s) => s.showStats);
 
   const names = useMemo(() => playerNames(view), [view]);
   const colors = useMemo(() => seatColors(view), [view]);
   const moves = view.legalMoves;
   const phase = view.phase;
+  const yourTurn = view.currentPlayer === view.you;
+  const waiting = moves.length > 0;
 
-  // A build mode is meaningless once the phase moves on.
+  // A build mode only makes sense inside the phase that offered it.
   useEffect(() => {
     setMode("none");
   }, [phase.k, view.currentPlayer]);
+
+  // Drop a mode the moment it stops being possible, so the board never shows
+  // highlights for something you can no longer afford.
+  useEffect(() => {
+    if (mode === "none") return;
+    const stillPossible = moves.some(
+      (m) =>
+        (mode === "road" && m.t === "buildRoad") ||
+        (mode === "settlement" && m.t === "buildSettlement") ||
+        (mode === "city" && m.t === "buildCity"),
+    );
+    if (!stillPossible) setMode("none");
+  }, [mode, moves]);
+
+  useShortcuts({ moves, dispatch, mode, setMode });
 
   const targets = useMemo(() => {
     const nodes = new Map<NodeId, Action>();
@@ -61,13 +82,22 @@ export function GameScreen({
     for (const move of moves) {
       switch (move.t) {
         case "setupSettlement":
-        case "buildSettlement":
-        case "buildCity":
           nodes.set(move.node, move);
           break;
         case "setupRoad":
-        case "buildRoad":
           edges.set(move.edge, move);
+          break;
+        case "buildSettlement":
+          if (mode === "settlement") nodes.set(move.node, move);
+          break;
+        case "buildCity":
+          if (mode === "city") nodes.set(move.node, move);
+          break;
+        case "buildRoad":
+          // Road Building hands out free roads without a mode to arm.
+          if (mode === "road" || phase.k === "roadBuilding") {
+            edges.set(move.edge, move);
+          }
           break;
         case "moveRobber":
           tiles.set(move.tile, move);
@@ -76,364 +106,351 @@ export function GameScreen({
           break;
       }
     }
+
     return { nodes, edges, tiles };
-  }, [moves]);
+  }, [moves, mode, phase.k]);
 
-  const active = useMemo(() => {
-    const none = {
-      nodes: new Set<NodeId>(),
-      edges: new Set<EdgeId>(),
-      tiles: new Set<TileId>(),
-    };
-
-    if (phase.k === "setup") {
-      return phase.sub === "settlement"
-        ? { ...none, nodes: new Set(targets.nodes.keys()) }
-        : { ...none, edges: new Set(targets.edges.keys()) };
-    }
-    if (phase.k === "moveRobber") {
-      return { ...none, tiles: new Set(targets.tiles.keys()) };
-    }
-    if (phase.k === "roadBuilding") {
-      return { ...none, edges: new Set(targets.edges.keys()) };
-    }
-
-    switch (mode) {
-      case "road":
-        return { ...none, edges: new Set(targets.edges.keys()) };
-      case "settlement":
-        return {
-          ...none,
-          nodes: new Set(
-            moves.flatMap((m) => (m.t === "buildSettlement" ? [m.node] : [])),
-          ),
-        };
-      case "city":
-        return {
-          ...none,
-          nodes: new Set(moves.flatMap((m) => (m.t === "buildCity" ? [m.node] : []))),
-        };
-      default:
-        return none;
-    }
-  }, [phase, mode, targets, moves]);
-
-  const play = (action: Action | undefined): void => {
-    if (action === undefined) return;
-    dispatch(action);
-    setMode("none");
-  };
-
-  const has = (kind: Action["t"]): boolean => moves.some((m) => m.t === kind);
-  const find = (kind: Action["t"]): Action | undefined =>
-    moves.find((m) => m.t === kind);
-
-  const yourTurn = view.currentPlayer === view.you;
-  const waiting = moves.length > 0;
+  const nodeGhost: "settlement" | "city" = mode === "city" ? "city" : "settlement";
+  const youColor = colors[view.you] ?? "#ffffff";
+  const handSize = totalResources(view.self.resources);
+  const actingSeat = waiting ? view.you : view.currentPlayer;
 
   return (
-    <div className="game-root">
-      <aside className="side left">
-        <TableHeader session={session} />
+    <div className="flex min-h-screen flex-col gap-2 p-2 tab:h-screen tab:min-h-0">
+      <Announcer log={log} names={names} />
 
-        <div className="players">
-          {view.players.map((p) => {
-            const isTurn = p.id === view.currentPlayer;
-            return (
-              <div key={p.id} className={`player${isTurn ? " turn" : ""}`}>
-                <span className="swatch" style={{ background: p.color }} />
-                <span className="pname">
-                  {p.name}
-                  {p.id === view.you ? " (you)" : ""}
-                </span>
-                <span className="pstat">{p.publicPoints} vp</span>
-                <span className="pstat dim">{p.handSize} cards</span>
-                <span className="pstat dim">{p.devCardCount} dev</span>
-                {p.knightsPlayed > 0 && (
-                  <span className="pstat dim">{p.knightsPlayed} kt</span>
-                )}
-                {view.longestRoad.player === p.id && (
-                  <span className="badge">road</span>
-                )}
-                {view.largestArmy.player === p.id && (
-                  <span className="badge">army</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
+      <TopBar session={session} yourTurn={yourTurn} waiting={waiting} />
 
-        <div className="log">
-          {log
-            .slice(-80)
-            .map((event, i) => ({ event, i }))
-            .reverse()
-            .map(({ event, i }) => {
-              const text = describeEvent(event, names);
-              if (text === "") return null;
-              return (
-                <div key={`${String(i)}-${event.e}`} className="log-line">
-                  {text}
-                </div>
-              );
-            })}
-        </div>
-      </aside>
+      <div
+        className={[
+          "flex min-h-0 flex-1 flex-col gap-2",
+          "tab:grid tab:grid-cols-[minmax(210px,240px)_minmax(0,1fr)_minmax(272px,300px)]",
+          "tab:grid-rows-[minmax(0,1.4fr)_minmax(0,1fr)]",
+          "tab:[grid-template-areas:'players_board_actions''players_board_log']",
+          "xl:grid-cols-[286px_minmax(0,1fr)_330px] xl:grid-rows-[auto_minmax(0,1fr)]",
+          "xl:[grid-template-areas:'players_board_actions''log_board_actions']",
+        ].join(" ")}
+      >
+        <aside className="tab:[grid-area:players] tab:min-h-0 tab:overflow-y-auto tab:pr-0.5">
+          <PlayerStrip view={view} />
+        </aside>
 
-      <main className="stage">
-        <BoardView
-          board={board}
-          roads={view.roads}
-          buildings={view.buildings}
-          robber={view.robber}
-          colors={colors}
-          highlightNodes={active.nodes}
-          highlightEdges={active.edges}
-          highlightTiles={active.tiles}
-          onNode={(node) => {
-            play(targets.nodes.get(node));
-          }}
-          onEdge={(edge) => {
-            play(targets.edges.get(edge));
-          }}
-          onTile={(tile) => {
-            play(targets.tiles.get(tile));
-          }}
-          showIds={showIds}
-        />
-      </main>
+        <main className="relative h-[56vh] min-h-[320px] overflow-hidden rounded-panel border border-gold/20 bg-surface-900 shadow-panel tab:h-auto tab:min-h-0 tab:[grid-area:board]">
+          <BoardCanvas
+            board={board}
+            roads={view.roads}
+            buildings={view.buildings}
+            robber={view.robber}
+            colors={colors}
+            nodeTargets={targets.nodes}
+            edgeTargets={targets.edges}
+            tileTargets={targets.tiles}
+            nodeGhost={nodeGhost}
+            onAction={(action) => {
+              dispatch(action);
+              setMode("none");
+            }}
+            youColor={youColor}
+            showStats={showStats}
+          />
 
-      <aside className="side right">
-        {view.winner !== null ? (
-          <Winner session={session} />
-        ) : (
-          <>
-            <div
-              className="turn-banner"
-              style={{ borderColor: colors[view.currentPlayer] }}
-            >
-              <strong>
-                {session.hotSeat
-                  ? names[view.currentPlayer]
-                  : yourTurn
-                    ? "Your turn"
-                    : `${names[view.currentPlayer] ?? "Someone"}'s turn`}
-              </strong>
-              <span>{describePrompt(view, view.you)}</span>
-              {view.dice !== null && (
-                <span className="dice">
-                  {view.dice[0]} + {view.dice[1]} = {view.dice[0] + view.dice[1]}
-                </span>
-              )}
-              {session.deadline != null && waiting && (
-                <Countdown deadline={session.deadline} />
-              )}
-            </div>
+          <PromptBanner
+            phase={phase.k}
+            // Waiting on someone else still says what the table is waiting
+            // for, not just who: "Ana · Place settlement 1 of 2" tells you how
+            // long you are likely to be waiting.
+            text={
+              waiting || session.hotSeat
+                ? describePrompt(view, view.you)
+                : `${names[view.currentPlayer] ?? "Someone"} · ${describePrompt(view, view.you)}`
+            }
+            seat={actingSeat}
+            color={colors[actingSeat] ?? "#ffffff"}
+            live={waiting}
+          />
 
-            <div className="hand">
-              {RESOURCE_KINDS.map((kind) => (
-                <div key={kind} className={`card ${kind}`}>
-                  <span className="kind">{kind}</span>
-                  <span className="count">{view.self.resources[kind]}</span>
-                </div>
-              ))}
-            </div>
+          {view.winner !== null && <WinnerOverlay session={session} />}
+        </main>
 
-            <DevCardHand view={view} />
+        <aside
+          data-panel="actions"
+          aria-label="Your controls"
+          className="panel min-h-0 overflow-y-auto p-3 tab:[grid-area:actions]"
+        >
+          <h2 className="mb-2.5 flex items-center gap-2 font-display text-[15px] font-semibold">
+            <Avatar
+              seat={view.currentPlayer}
+              color={colors[view.currentPlayer] ?? "#888"}
+              size={24}
+            />
+            {session.hotSeat
+              ? names[view.currentPlayer]
+              : yourTurn
+                ? "Your turn"
+                : names[view.currentPlayer]}
+          </h2>
 
-            {!waiting && (
-              <p className="hint waiting">
-                Waiting for {names[view.currentPlayer] ?? "another player"}…
-              </p>
-            )}
-
-            {phase.k === "discard" && waiting && (
-              <DiscardPanel
-                hand={view.self.resources}
-                selection={discard}
-                required={Math.floor(totalResources(view.self.resources) / 2)}
-                onChange={setDiscard}
-                onConfirm={() => {
-                  dispatch({
-                    t: "discard",
-                    player: view.you,
-                    resources: discard,
-                  });
-                  setDiscard(emptyResources());
-                }}
-              />
-            )}
-
-            {phase.k === "steal" && waiting && (
-              <div className="actions">
-                <h3>Steal from</h3>
-                {phase.targets.length === 0 ? (
-                  <button onClick={() => play(find("steal"))}>
-                    No one to rob — continue
-                  </button>
-                ) : (
-                  phase.targets.map((target: PlayerId) => (
-                    <button
-                      key={target}
-                      onClick={() => {
-                        dispatch({ t: "steal", player: view.you, target });
-                      }}
-                    >
-                      <span>{names[target]}</span>
-                      <span className="cost">
-                        {view.players[target]?.handSize ?? 0} cards
-                      </span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-
-            {phase.k === "tradeOffer" && (
-              <TradePanel view={view} names={names} moves={moves} onAction={play} />
-            )}
-
-            {phase.k === "roll" && waiting && (
-              <div className="actions">
-                <button className="primary" onClick={() => play(find("rollDice"))}>
-                  Roll dice
-                </button>
-                <DevCardButtons moves={moves} onAction={play} />
-              </div>
-            )}
-
-            {phase.k === "main" && waiting && (
-              <div className="actions">
-                <h3>Build</h3>
-                <button
-                  disabled={!has("buildRoad")}
-                  className={mode === "road" ? "on" : ""}
-                  onClick={() => {
-                    setMode(mode === "road" ? "none" : "road");
-                  }}
-                >
-                  <span>Road</span>
-                  <span className="cost">1 brick 1 lumber</span>
-                </button>
-                <button
-                  disabled={!has("buildSettlement")}
-                  className={mode === "settlement" ? "on" : ""}
-                  onClick={() => {
-                    setMode(mode === "settlement" ? "none" : "settlement");
-                  }}
-                >
-                  <span>Settlement</span>
-                  <span className="cost">1 brick 1 lumber 1 wool 1 grain</span>
-                </button>
-                <button
-                  disabled={!has("buildCity")}
-                  className={mode === "city" ? "on" : ""}
-                  onClick={() => {
-                    setMode(mode === "city" ? "none" : "city");
-                  }}
-                >
-                  <span>City</span>
-                  <span className="cost">3 ore 2 grain</span>
-                </button>
-                <button
-                  disabled={!has("buyDevCard")}
-                  onClick={() => play(find("buyDevCard"))}
-                >
-                  <span>Development card</span>
-                  <span className="cost">
-                    1 ore 1 wool 1 grain · {view.devDeckSize} left
-                  </span>
-                </button>
-
-                <DevCardButtons moves={moves} onAction={play} />
-                <BankTradePanel
-                  board={board}
-                  view={view}
-                  moves={moves}
-                  onAction={play}
-                />
-                {canOffer(view) && <OfferTradePanel you={view.you} onAction={play} />}
-
-                <button className="primary end" onClick={() => play(find("endTurn"))}>
-                  End turn
-                </button>
-              </div>
-            )}
-
-            {phase.k === "roadBuilding" && waiting && (
-              <div className="actions">
-                <h3>Road Building</h3>
-                <p className="hint">
-                  Place {phase.remaining} free road
-                  {phase.remaining === 1 ? "" : "s"}.
-                </p>
-                {!has("buildRoad") && (
-                  <button onClick={() => play(find("endRoadBuilding"))}>
-                    Nowhere to build — continue
-                  </button>
-                )}
-              </div>
-            )}
-          </>
-        )}
-
-        {session.onChat !== undefined && (
-          <ChatPanel chat={session.chat ?? []} onSend={session.onChat} />
-        )}
-
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={showIds}
-            onChange={(e) => {
-              setShowIds(e.target.checked);
+          <ActionBar
+            view={view}
+            mode={mode}
+            onMode={setMode}
+            onAction={(action) => {
+              dispatch(action);
+              setMode("none");
             }}
           />
-          Show ids
-        </label>
 
-        {session.error !== null && (
-          <div className="error" onClick={session.dismissError}>
-            {session.error}
-          </div>
-        )}
-      </aside>
+          <PlacementList
+            board={board}
+            nodes={targets.nodes}
+            edges={targets.edges}
+            tiles={targets.tiles}
+            onAction={(action) => {
+              dispatch(action);
+              setMode("none");
+            }}
+          />
+        </aside>
+
+        <div className="min-h-[220px] tab:[grid-area:log] tab:min-h-0">
+          <LogPanel
+            log={log}
+            names={names}
+            colors={colors}
+            {...(session.chat === undefined ? {} : { chat: session.chat })}
+            onChat={session.onChat}
+          />
+        </div>
+      </div>
+
+      <footer className="panel shrink-0">
+        <HandDock view={view} overLimit={handSize > 7} />
+      </footer>
+
+      {session.error !== null && (
+        <ErrorToast message={session.error} onDismiss={session.dismissError} />
+      )}
     </div>
   );
 }
 
-function TableHeader({
+/**
+ * Keyboard shortcuts for the moves a player makes every turn.
+ *
+ * Only ever dispatches a move that is already in `legalMoves`, so a shortcut
+ * can do nothing the mouse could not (golden rule 3).
+ */
+function useShortcuts({
+  moves,
+  dispatch,
+  mode,
+  setMode,
+}: {
+  readonly moves: readonly Action[];
+  readonly dispatch: (action: Action) => void;
+  readonly mode: BuildMode;
+  readonly setMode: (mode: BuildMode) => void;
+}): void {
+  const toggleListView = useUi((s) => s.toggleListView);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const find = (t: Action["t"]): Action | undefined => moves.find((m) => m.t === t);
+      const arm = (next: BuildMode, kind: Action["t"]): void => {
+        if (!moves.some((m) => m.t === kind)) return;
+        setMode(mode === next ? "none" : next);
+        event.preventDefault();
+      };
+
+      switch (event.key.toLowerCase()) {
+        case "r": {
+          const roll = find("rollDice");
+          if (roll !== undefined) {
+            dispatch(roll);
+            event.preventDefault();
+          }
+          break;
+        }
+        case "e": {
+          const end = find("endTurn");
+          if (end !== undefined) {
+            dispatch(end);
+            event.preventDefault();
+          }
+          break;
+        }
+        case "q":
+          arm("road", "buildRoad");
+          break;
+        case "s":
+          arm("settlement", "buildSettlement");
+          break;
+        case "c":
+          arm("city", "buildCity");
+          break;
+        case "l":
+          toggleListView();
+          event.preventDefault();
+          break;
+        case "escape":
+          setMode("none");
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [moves, dispatch, mode, setMode, toggleListView]);
+}
+
+function TopBar({
   session,
+  yourTurn,
+  waiting,
 }: {
   readonly session: GameSession;
+  readonly yourTurn: boolean;
+  readonly waiting: boolean;
 }): React.JSX.Element {
+  const { view } = session;
+  const listView = useUi((s) => s.listView);
+  const toggleListView = useUi((s) => s.toggleListView);
+  const showStats = useUi((s) => s.showStats);
+  const toggleStats = useUi((s) => s.toggleStats);
+  const effects = useUi((s) => s.effects);
+  const setEffects = useUi((s) => s.setEffects);
+  const current = view.players[view.currentPlayer];
+
   return (
-    <>
-      <h1>hexport</h1>
-      <p className="sub">
-        {session.hotSeat ? "Hot-seat. Base game." : "Online. Base game."}
-      </p>
-    </>
+    <header className="panel flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2">
+      <Wordmark />
+
+      <span
+        className={[
+          "flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium",
+          waiting ? "bg-gold/20 text-gold" : "bg-surface-700 text-ink-300",
+        ].join(" ")}
+      >
+        <Avatar seat={view.currentPlayer} color={current?.color ?? "#888"} size={20} />
+        {session.hotSeat
+          ? `${current?.name ?? ""} to act`
+          : yourTurn
+            ? "Your move"
+            : `${current?.name ?? ""} is thinking`}
+      </span>
+
+      <span className="text-xs text-ink-500 tabular-nums">turn {view.turn}</span>
+
+      <Dice values={view.dice} />
+
+      {session.deadline != null && waiting && <Countdown deadline={session.deadline} />}
+
+      <div className="ml-auto flex items-center gap-1">
+        <Toggle pressed={listView} onClick={toggleListView} title="List every legal move (L)">
+          List
+        </Toggle>
+        <Toggle
+          pressed={effects === "auto"}
+          onClick={() => {
+            setEffects(effects === "auto" ? "off" : "auto");
+          }}
+          title="Bloom and vignette on the board"
+        >
+          Effects
+        </Toggle>
+        <Toggle pressed={showStats} onClick={toggleStats} title="Frame rate and draw calls">
+          Stats
+        </Toggle>
+      </div>
+    </header>
   );
 }
 
-function Winner({ session }: { readonly session: GameSession }): React.JSX.Element {
-  const { view } = session;
-  const winner = view.winner;
-  if (winner === null) return <></>;
-  const name = view.players[winner]?.name ?? "Someone";
-
+function Toggle({
+  pressed,
+  onClick,
+  title,
+  children,
+}: {
+  readonly pressed: boolean;
+  readonly onClick: () => void;
+  readonly title: string;
+  readonly children: React.ReactNode;
+}): React.JSX.Element {
   return (
-    <div className="winner">
-      <h2>{name} wins</h2>
-      <p>{view.players[winner]?.publicPoints ?? 0}+ victory points</p>
+    <button
+      type="button"
+      aria-pressed={pressed}
+      title={title}
+      onClick={onClick}
+      className={[
+        "rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+        pressed
+          ? "bg-gold/20 text-gold"
+          : "text-ink-700 hover:bg-surface-700 hover:text-ink-300",
+      ].join(" ")}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * What the game is waiting for, over the board.
+ *
+ * Carries `data-prompt`, which is how the tests and the driver know the phase —
+ * a data attribute, never a class name (CLAUDE.md, Conventions).
+ */
+function PromptBanner({
+  phase,
+  text,
+  seat,
+  color,
+  live,
+}: {
+  readonly phase: string;
+  readonly text: string;
+  readonly seat: number;
+  readonly color: string;
+  readonly live: boolean;
+}): React.JSX.Element {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-3">
+      <p
+        data-prompt={phase}
+        className={[
+          "flex animate-[banner-in_0.35s_var(--ease-out-soft)] items-center gap-2.5 rounded-full border px-4 py-2 backdrop-blur",
+          "font-display text-[15px] font-semibold shadow-panel",
+          live
+            ? "border-gold/50 bg-surface-800/90 text-ink-100"
+            : "border-gold/15 bg-surface-800/75 text-ink-500",
+        ].join(" ")}
+      >
+        <Avatar seat={seat} color={color} size={22} />
+        {text}
+      </p>
     </div>
   );
 }
 
-/** Shows how long is left before the turn timer auto-passes. */
 function Countdown({ deadline }: { readonly deadline: number }): React.JSX.Element {
   const [now, setNow] = useState(() => Date.now());
+
   useEffect(() => {
     const handle = window.setInterval(() => {
       setNow(Date.now());
@@ -444,340 +461,101 @@ function Countdown({ deadline }: { readonly deadline: number }): React.JSX.Eleme
   }, []);
 
   const left = Math.max(0, Math.ceil((deadline - now) / 1000));
-  return <span className={left <= 10 ? "timer urgent" : "timer"}>{left}s</span>;
-}
-
-function DevCardHand({ view }: { readonly view: WireView }): React.JSX.Element | null {
-  if (view.self.devCards.length === 0) return null;
-
-  const counts = new Map<string, { total: number; playable: number }>();
-  for (const card of view.self.devCards) {
-    if (card.played) continue;
-    const entry = counts.get(card.kind) ?? { total: 0, playable: 0 };
-    entry.total += 1;
-    if (card.playable) entry.playable += 1;
-    counts.set(card.kind, entry);
-  }
-  if (counts.size === 0) return null;
 
   return (
-    <div className="devhand">
-      {[...counts.entries()].map(([kind, entry]) => (
-        <span key={kind} className={entry.playable > 0 ? "dev ready" : "dev"}>
-          {kind} ×{entry.total}
+    <span
+      className={[
+        "rounded-full px-2.5 py-1 font-num text-xs font-semibold tabular-nums",
+        left <= 10 ? "bg-danger/20 text-danger" : "bg-surface-700 text-ink-500",
+      ].join(" ")}
+      title="Time left before your turn is passed automatically"
+    >
+      {left}s
+    </span>
+  );
+}
+
+function WinnerOverlay({
+  session,
+}: {
+  readonly session: GameSession;
+}): React.JSX.Element {
+  const { view } = session;
+  const winner = view.winner;
+  if (winner === null) return <></>;
+
+  const player = view.players[winner];
+  const youWon = winner === view.you;
+  const standings = [...view.players].sort((a, b) => b.publicPoints - a.publicPoints);
+
+  return (
+    <div
+      data-winner={winner}
+      role="status"
+      className="absolute inset-0 z-20 grid place-items-center bg-surface-900/75 backdrop-blur-sm"
+    >
+      <Confetti colors={view.players.map((p) => p.color)} />
+
+      <div className="panel relative w-[min(92%,380px)] animate-[rise-in_0.5s_var(--ease-out-soft)] p-6 text-center">
+        <span className="mx-auto mb-3 block w-fit">
+          <Avatar seat={winner} color={player?.color ?? "#888"} size={56} ring />
         </span>
-      ))}
-    </div>
-  );
-}
+        <p className="eyebrow">Victory</p>
+        <h2 className="font-display text-[30px] leading-tight font-bold text-ink-100">
+          {youWon ? "You win!" : `${player?.name ?? "Someone"} wins`}
+        </h2>
 
-function DevCardButtons({
-  moves,
-  onAction,
-}: {
-  readonly moves: readonly Action[];
-  readonly onAction: (a: Action | undefined) => void;
-}): React.JSX.Element | null {
-  const knight = moves.find((m) => m.t === "playKnight");
-  const roads = moves.find((m) => m.t === "playRoadBuilding");
-  const plenty = moves.filter((m) => m.t === "playYearOfPlenty");
-  const monopoly = moves.filter((m) => m.t === "playMonopoly");
+        <ol className="mt-4 flex flex-col gap-1 text-left">
+          {standings.map((seat) => (
+            <li
+              key={seat.id}
+              className={[
+                "flex items-center gap-2.5 rounded-[10px] px-2.5 py-1.5",
+                seat.id === winner ? "bg-gold/15" : "bg-surface-700/50",
+              ].join(" ")}
+            >
+              <Avatar seat={seat.id} color={seat.color} size={24} />
+              <span className="flex-1 truncate text-sm text-ink-100">{seat.name}</span>
+              <span className="font-num text-base font-bold text-gold tabular-nums">
+                {seat.publicPoints}
+              </span>
+            </li>
+          ))}
+        </ol>
 
-  if (
-    knight === undefined &&
-    roads === undefined &&
-    plenty.length === 0 &&
-    monopoly.length === 0
-  ) {
-    return null;
-  }
-
-  return (
-    <>
-      <h3>Play a card</h3>
-      {knight !== undefined && <button onClick={() => onAction(knight)}>Knight</button>}
-      {roads !== undefined && (
-        <button onClick={() => onAction(roads)}>Road Building</button>
-      )}
-      {plenty.length > 0 && (
-        <details>
-          <summary>Year of Plenty</summary>
-          <div className="grid">
-            {plenty.map((m) =>
-              m.t === "playYearOfPlenty" ? (
-                <button key={m.resources.join()} onClick={() => onAction(m)}>
-                  {m.resources.join(" + ")}
-                </button>
-              ) : null,
-            )}
-          </div>
-        </details>
-      )}
-      {monopoly.length > 0 && (
-        <details>
-          <summary>Monopoly</summary>
-          <div className="grid">
-            {monopoly.map((m) =>
-              m.t === "playMonopoly" ? (
-                <button key={m.resource} onClick={() => onAction(m)}>
-                  {m.resource}
-                </button>
-              ) : null,
-            )}
-          </div>
-        </details>
-      )}
-    </>
-  );
-}
-
-function BankTradePanel({
-  board,
-  view,
-  moves,
-  onAction,
-}: {
-  readonly board: GameSession["board"];
-  readonly view: WireView;
-  readonly moves: readonly Action[];
-  readonly onAction: (a: Action | undefined) => void;
-}): React.JSX.Element | null {
-  const trades = moves.filter((m) => m.t === "bankTrade");
-  if (trades.length === 0) return null;
-  const rates = portRates(board, view);
-
-  return (
-    <details className="trade">
-      <summary>Bank / harbour trade</summary>
-      <div className="rates">
-        {RESOURCE_KINDS.map((kind) => (
-          <span key={kind}>
-            {kind} {rates[kind]}:1
-          </span>
-        ))}
+        <p className="mt-3 text-xs text-ink-500">
+          Points on the board. Hidden victory cards count too.
+        </p>
       </div>
-      <div className="grid">
-        {trades.map((m) =>
-          m.t === "bankTrade" ? (
-            <button key={`${m.give}-${m.receive}`} onClick={() => onAction(m)}>
-              {m.rate} {m.give} → 1 {m.receive}
-            </button>
-          ) : null,
-        )}
+    </div>
+  );
+}
+
+function ErrorToast({
+  message,
+  onDismiss,
+}: {
+  readonly message: string;
+  readonly onDismiss: () => void;
+}): React.JSX.Element {
+  useEffect(() => {
+    const handle = window.setTimeout(onDismiss, 6000);
+    return () => {
+      window.clearTimeout(handle);
+    };
+  }, [message, onDismiss]);
+
+  return (
+    <div
+      role="alert"
+      className="pointer-events-none fixed inset-x-0 bottom-28 z-50 flex justify-center px-3"
+    >
+      <div className="panel pointer-events-auto flex max-w-sm items-center gap-3 border-danger/50! px-3.5 py-2.5">
+        <span className="text-xs text-ink-100">{message}</span>
+        <Button size="sm" intent="ghost" className="w-auto" onClick={onDismiss}>
+          Dismiss
+        </Button>
       </div>
-    </details>
-  );
-}
-
-function OfferTradePanel({
-  you,
-  onAction,
-}: {
-  readonly you: PlayerId;
-  readonly onAction: (a: Action | undefined) => void;
-}): React.JSX.Element {
-  const [give, setGive] = useState<ResourceCounts>(emptyResources());
-  const [receive, setReceive] = useState<ResourceCounts>(emptyResources());
-
-  return (
-    <details className="trade">
-      <summary>Offer a trade</summary>
-      <ResourcePicker label="You give" value={give} onChange={setGive} />
-      <ResourcePicker label="You want" value={receive} onChange={setReceive} />
-      <button
-        disabled={totalResources(give) === 0 || totalResources(receive) === 0}
-        onClick={() => {
-          onAction({ t: "offerTrade", player: you, give, receive });
-          setGive(emptyResources());
-          setReceive(emptyResources());
-        }}
-      >
-        Offer
-      </button>
-    </details>
-  );
-}
-
-function TradePanel({
-  view,
-  names,
-  moves,
-  onAction,
-}: {
-  readonly view: WireView;
-  readonly names: readonly string[];
-  readonly moves: readonly Action[];
-  readonly onAction: (a: Action | undefined) => void;
-}): React.JSX.Element {
-  if (view.phase.k !== "tradeOffer") return <></>;
-  const offer = view.phase.offer;
-
-  return (
-    <div className="actions">
-      <h3>Trade offer</h3>
-      <p className="hint">
-        {names[offer.from]} gives {summarise(offer.give)} for {summarise(offer.receive)}
-      </p>
-      {moves.length === 0 && <p className="hint">Waiting…</p>}
-      {moves.map((m, i) => {
-        if (m.t === "respondTrade") {
-          return (
-            <button key={`r${String(i)}`} onClick={() => onAction(m)}>
-              {m.accept ? "Accept" : "Decline"}
-            </button>
-          );
-        }
-        if (m.t === "confirmTrade") {
-          return (
-            <button key={`c${String(i)}`} onClick={() => onAction(m)}>
-              Trade with {names[m.with]}
-            </button>
-          );
-        }
-        if (m.t === "cancelTrade") {
-          return (
-            <button key={`x${String(i)}`} onClick={() => onAction(m)}>
-              Cancel offer
-            </button>
-          );
-        }
-        return null;
-      })}
     </div>
   );
-}
-
-function ResourcePicker({
-  label,
-  value,
-  onChange,
-}: {
-  readonly label: string;
-  readonly value: ResourceCounts;
-  readonly onChange: (next: ResourceCounts) => void;
-}): React.JSX.Element {
-  return (
-    <div className="picker">
-      <span className="picker-label">{label}</span>
-      {RESOURCE_KINDS.map((kind) => (
-        <div key={kind} className="picker-row">
-          <span>{kind}</span>
-          <button
-            onClick={() => {
-              onChange({ ...value, [kind]: Math.max(0, value[kind] - 1) });
-            }}
-          >
-            −
-          </button>
-          <span className="num">{value[kind]}</span>
-          <button
-            onClick={() => {
-              onChange({ ...value, [kind]: value[kind] + 1 });
-            }}
-          >
-            +
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DiscardPanel({
-  hand,
-  selection,
-  required,
-  onChange,
-  onConfirm,
-}: {
-  readonly hand: ResourceCounts;
-  readonly selection: ResourceCounts;
-  readonly required: number;
-  readonly onChange: (next: ResourceCounts) => void;
-  readonly onConfirm: () => void;
-}): React.JSX.Element {
-  const chosen = totalResources(selection);
-
-  return (
-    <div className="actions">
-      <h3>Discard {required}</h3>
-      <p className="hint">
-        Selected {chosen} of {required}
-      </p>
-      {RESOURCE_KINDS.map((kind) => (
-        <div key={kind} className="picker-row">
-          <span>
-            {kind} ({hand[kind]})
-          </span>
-          <button
-            disabled={selection[kind] <= 0}
-            onClick={() => {
-              onChange({ ...selection, [kind]: selection[kind] - 1 });
-            }}
-          >
-            −
-          </button>
-          <span className="num">{selection[kind]}</span>
-          <button
-            disabled={selection[kind] >= hand[kind] || chosen >= required}
-            onClick={() => {
-              onChange({ ...selection, [kind]: selection[kind] + 1 });
-            }}
-          >
-            +
-          </button>
-        </div>
-      ))}
-      <button className="primary" disabled={chosen !== required} onClick={onConfirm}>
-        Discard
-      </button>
-    </div>
-  );
-}
-
-function ChatPanel({
-  chat,
-  onSend,
-}: {
-  readonly chat: readonly { from: string; text: string; at: number }[];
-  readonly onSend: (text: string) => void;
-}): React.JSX.Element {
-  const [draft, setDraft] = useState("");
-
-  return (
-    <details className="trade chat">
-      <summary>Chat</summary>
-      <div className="chat-log">
-        {chat.slice(-30).map((line, i) => (
-          <div key={`${String(line.at)}-${String(i)}`}>
-            <strong>{line.from}:</strong> {line.text}
-          </div>
-        ))}
-      </div>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const text = draft.trim();
-          if (text === "") return;
-          onSend(text);
-          setDraft("");
-        }}
-      >
-        <input
-          value={draft}
-          placeholder="Say something"
-          onChange={(e) => {
-            setDraft(e.target.value);
-          }}
-        />
-      </form>
-    </details>
-  );
-}
-
-function summarise(counts: ResourceCounts): string {
-  const parts = RESOURCE_KINDS.filter((k) => counts[k] > 0).map(
-    (k) => `${String(counts[k])} ${k}`,
-  );
-  return parts.length === 0 ? "nothing" : parts.join(", ");
 }

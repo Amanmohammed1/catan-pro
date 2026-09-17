@@ -19,7 +19,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "fuzz": "pnpm --filter @hexport/bot-runner fuzz",
-    "test:slow": "vitest run -c vitest.slow.config.ts"
+    "test:slow": "vitest run -c vitest.slow.config.ts",
+    "shots": "node scripts/screenshot.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

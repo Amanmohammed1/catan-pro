@@ -8,6 +8,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["apps/*/src/**/*.slow.test.{ts,tsx}"],
+    setupFiles: ["apps/web/src/test/setup.ts"],
     testTimeout: 180000,
     hookTimeout: 60000,
   },

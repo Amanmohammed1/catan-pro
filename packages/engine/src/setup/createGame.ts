@@ -29,13 +29,17 @@ import { RESOURCE_KINDS } from "../state/types.js";
 /** Rules p.2: 95 resource cards, 19 of each of the five types. */
 export const BANK_PER_RESOURCE = 19;
 
+/**
+ * Seat colours: red, blue, orange, white, green, purple. Presentation data the
+ * server passes through to clients; apps/web/src/three/palette.ts mirrors it.
+ */
 export const DEFAULT_COLORS: readonly string[] = [
-  "#d94f4f",
-  "#3f7fd9",
-  "#e8a13a",
-  "#ffffff",
-  "#37a169",
-  "#8b5cf6",
+  "#d8412f",
+  "#2f6fd0",
+  "#f08a24",
+  "#f3eee2",
+  "#3c9a4c",
+  "#8d5bd0",
 ];
 
 export interface CreateGameOptions {

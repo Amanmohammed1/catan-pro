@@ -1,3 +1,4 @@
+import "./debug.css";
 import { useMemo, useState } from "react";
 import {
   buildBoardGraph,

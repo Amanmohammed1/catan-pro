@@ -1,7 +1,12 @@
-import { DebugBoard } from "./DebugBoard.js";
+import { lazy, Suspense } from "react";
 import { HotSeatGame } from "./game/HotSeatGame.js";
 import { OnlineGame } from "./net/OnlineGame.js";
 import { defaultServerUrl } from "./net/useConnection.js";
+
+// Loaded on demand so its stylesheet never reaches the real game screens.
+const DebugBoard = lazy(() =>
+  import("./DebugBoard.js").then((module) => ({ default: module.DebugBoard })),
+);
 
 /**
  * Three screens, chosen by query string:
@@ -13,7 +18,13 @@ import { defaultServerUrl } from "./net/useConnection.js";
 export function App(): React.JSX.Element {
   const params = new URLSearchParams(window.location.search);
 
-  if (params.get("debug") === "1") return <DebugBoard />;
+  if (params.get("debug") === "1") {
+    return (
+      <Suspense fallback={null}>
+        <DebugBoard />
+      </Suspense>
+    );
+  }
 
   if (params.get("hotseat") === "1") {
     const players = Number(params.get("players") ?? "4");

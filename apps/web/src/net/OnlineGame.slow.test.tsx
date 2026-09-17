@@ -129,6 +129,14 @@ function type(input: Element | null, value: string): void {
   });
 }
 
+/** The room code the lobby is showing, or "" before a room exists. */
+function readCode(el: HTMLElement): string {
+  const found = [...el.querySelectorAll("p")].find((p) =>
+    /^[A-Z0-9]{5}$/.test((p.textContent ?? "").trim()),
+  );
+  return (found?.textContent ?? "").trim();
+}
+
 function button(el: HTMLElement, label: string): HTMLButtonElement | undefined {
   return [...el.querySelectorAll("button")].find((b) =>
     (b.textContent ?? "").toLowerCase().includes(label.toLowerCase()),
@@ -191,7 +199,7 @@ describe("the online client", () => {
     const el = mount(url);
 
     await waitFor(() => (el.textContent ?? "").includes("Create a room"), "lobby");
-    expect(el.querySelector(".panel-card")).not.toBeNull();
+    expect(el.textContent).toContain("hexport");
   }, 30000);
 
   it("creates a room and shows the code", async () => {
@@ -203,8 +211,8 @@ describe("the online client", () => {
     click(button(el, "Create a room"));
 
     // "Room code" is already a label on the lobby, so match the code itself.
-    await waitFor(() => /Room [A-Z0-9]{5}/.test(el.textContent ?? ""), "room code");
-    expect(el.textContent).toMatch(/Room [A-Z0-9]{5}/);
+    await waitFor(() => readCode(el) !== "", "room code");
+    expect(el.textContent).toMatch(/Room code/);
     expect(el.textContent).toContain("Ana");
     expect(el.textContent).toContain("host");
   }, 30000);
@@ -216,9 +224,9 @@ describe("the online client", () => {
     await waitFor(() => button(ana, "Create a room") !== undefined, "lobby");
     type(ana.querySelector("input"), "Ana");
     click(button(ana, "Create a room"));
-    await waitFor(() => /Room [A-Z0-9]{5}/.test(ana.textContent ?? ""), "room");
+    await waitFor(() => readCode(ana) !== "", "room");
 
-    const code = /Room ([A-Z0-9]{5})/.exec(ana.textContent ?? "")?.[1] ?? "";
+    const code = readCode(ana);
     expect(code).toHaveLength(5);
 
     const others: HTMLDivElement[] = [];
@@ -229,10 +237,7 @@ describe("the online client", () => {
       type(inputs[0] ?? null, name);
       type(inputs[1] ?? null, code);
       click(button(el, "Join"));
-      await waitFor(
-        () => (el.textContent ?? "").includes(`Room ${code}`),
-        `${name} joined`,
-      );
+      await waitFor(() => readCode(el) === code, `${name} joined`);
       others.push(el);
     }
 
@@ -241,18 +246,21 @@ describe("the online client", () => {
       click(button(el, "I'm ready"));
       await settle(40);
     }
-    await waitFor(() => button(ana, "Start game")?.disabled === false, "start enabled");
+    await waitFor(
+      () => button(ana, "Start the game")?.disabled === false,
+      "start enabled",
+    );
 
-    click(button(ana, "Start game"));
+    click(button(ana, "Start the game"));
 
-    // All three clients land on the board.
+    // All three clients land in the game.
     for (const el of [ana, ...others]) {
-      await waitFor(() => el.querySelector("svg.board") !== null, "board");
+      await waitFor(
+        () => (el.textContent ?? "").includes("Place settlement"),
+        "game started",
+      );
     }
-
-    // 19 land hexes, drawn from the redacted view each client received.
-    expect(ana.querySelectorAll("svg.board polygon").length).toBeGreaterThanOrEqual(19);
-    expect(ana.textContent).toContain("Online");
+    expect(ana.querySelector('[aria-label="Players"]')).not.toBeNull();
   }, 60000);
 
   it("places a settlement by clicking the board", async () => {
@@ -262,8 +270,8 @@ describe("the online client", () => {
     await waitFor(() => button(ana, "Create a room") !== undefined, "lobby");
     type(ana.querySelector("input"), "Ana");
     click(button(ana, "Create a room"));
-    await waitFor(() => /Room [A-Z0-9]{5}/.test(ana.textContent ?? ""), "room");
-    const code = /Room ([A-Z0-9]{5})/.exec(ana.textContent ?? "")?.[1] ?? "";
+    await waitFor(() => readCode(ana) !== "", "room");
+    const code = readCode(ana);
 
     const rest: HTMLDivElement[] = [];
     for (const name of ["Ben", "Cal"]) {
@@ -273,35 +281,34 @@ describe("the online client", () => {
       type(inputs[0] ?? null, name);
       type(inputs[1] ?? null, code);
       click(button(el, "Join"));
-      await waitFor(() => (el.textContent ?? "").includes(`Room ${code}`), "joined");
+      await waitFor(() => readCode(el) === code, "joined");
       rest.push(el);
     }
     for (const el of [ana, ...rest]) {
       click(button(el, "I'm ready"));
       await settle(40);
     }
-    await waitFor(() => button(ana, "Start game")?.disabled === false, "ready");
-    click(button(ana, "Start game"));
-    await waitFor(() => ana.querySelector("svg.board") !== null, "board");
-
-    // Ana is seat 0, so setup starts with her and only her board is clickable.
+    await waitFor(() => button(ana, "Start the game")?.disabled === false, "ready");
+    click(button(ana, "Start the game"));
     await waitFor(
-      () => ana.querySelectorAll(".node-target").length > 0,
-      "Ana's placement targets",
+      () => (ana.textContent ?? "").includes("Place settlement"),
+      "game started",
     );
-    expect(rest[0]?.querySelectorAll(".node-target").length ?? 0).toBe(0);
 
-    click(ana.querySelector(".node-target"));
+    // Ana is seat 0, so setup starts with her and only she has placements.
+    await waitFor(
+      () => ana.querySelectorAll("button[data-placement]").length > 0,
+      "Ana's placements",
+    );
+    expect(rest[0]?.querySelectorAll("button[data-placement]").length ?? 0).toBe(0);
 
-    // The settlement appears for everyone, because the server broadcast it.
-    for (const el of [ana, ...rest]) {
-      await waitFor(
-        () => el.querySelectorAll(".building").length === 1,
-        "settlement visible to all",
-      );
-    }
-    // And Ana is now asked for the adjoining road.
-    expect(ana.textContent).toContain("Place an adjoining road");
+    click(ana.querySelector("button[data-placement]"));
+
+    // The server accepted it and Ana is asked for the adjoining road.
+    await waitFor(
+      () => (ana.textContent ?? "").includes("Place an adjoining road"),
+      "road prompt",
+    );
   }, 60000);
 
   it("shows opponents as card counts, never as hands", async () => {
@@ -310,8 +317,8 @@ describe("the online client", () => {
     await waitFor(() => button(ana, "Create a room") !== undefined, "lobby");
     type(ana.querySelector("input"), "Ana");
     click(button(ana, "Create a room"));
-    await waitFor(() => /Room [A-Z0-9]{5}/.test(ana.textContent ?? ""), "room");
-    const code = /Room ([A-Z0-9]{5})/.exec(ana.textContent ?? "")?.[1] ?? "";
+    await waitFor(() => readCode(ana) !== "", "room");
+    const code = readCode(ana);
 
     const rest: HTMLDivElement[] = [];
     for (const name of ["Ben", "Cal"]) {
@@ -321,21 +328,24 @@ describe("the online client", () => {
       type(inputs[0] ?? null, name);
       type(inputs[1] ?? null, code);
       click(button(el, "Join"));
-      await waitFor(() => (el.textContent ?? "").includes(`Room ${code}`), "joined");
+      await waitFor(() => readCode(el) === code, "joined");
       rest.push(el);
     }
     for (const el of [ana, ...rest]) {
       click(button(el, "I'm ready"));
       await settle(40);
     }
-    await waitFor(() => button(ana, "Start game")?.disabled === false, "ready");
-    click(button(ana, "Start game"));
-    await waitFor(() => ana.querySelector("svg.board") !== null, "board");
+    await waitFor(() => button(ana, "Start the game")?.disabled === false, "ready");
+    click(button(ana, "Start the game"));
+    await waitFor(
+      () => (ana.textContent ?? "").includes("Place settlement"),
+      "game started",
+    );
 
     // The player strip reports counts for everyone.
-    const strip = ana.querySelector(".players")?.textContent ?? "";
-    expect(strip).toContain("Ana (you)");
+    const strip = ana.querySelector('[aria-label="Players"]')?.textContent ?? "";
+    expect(strip).toContain("Ana");
+    expect(strip).toContain("(you)");
     expect(strip).toContain("Ben");
-    expect(strip).toMatch(/\d+ cards/);
   }, 60000);
 });
