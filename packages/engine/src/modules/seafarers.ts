@@ -24,14 +24,16 @@ import type { ModuleEffect, ModuleState, RuleModule } from "./types.js";
 /**
  * Seafarers' slice of the game state.
  *
- * `settledIslands` drives the island victory points: p.4 pays 2 VP for each
- * player's *first* settlement on a small island, and "it does not matter if
- * other players have already built settlements on that island", so the record
- * is per player rather than global.
+ * Only what the board cannot answer on its own. The board graph records which
+ * island each tile belongs to, but the victory points an island is worth live
+ * in the scenario, and the engine cannot read a scenario at runtime (golden
+ * rule 1). `setupState` is handed the scenario once, so the figures are copied
+ * here and the score is computed from the board afterwards.
  */
 export interface SeafarersState extends ModuleState {
   readonly m: "seafarers";
-  readonly settledIslands: Readonly<Record<PlayerId, readonly string[]>>;
+  /** Victory points for a player's first settlement on each island (p.4). */
+  readonly islandVp: Readonly<Record<string, number>>;
 }
 
 /** Narrow a module state slice to this module's own. */
@@ -66,8 +68,43 @@ export const seafarersModule: RuleModule = {
 
   setupState: (ctx): SeafarersState => ({
     m: "seafarers",
-    settledIslands: Object.fromEntries(ctx.players.map((player) => [player, []])),
+    islandVp: Object.fromEntries(
+      ctx.scenario.islands.map((island) => [island.id, island.vpForFirstSettlement]),
+    ),
   }),
+
+  /**
+   * Victory points for settling new islands. Seafarers p.4:
+   *
+   *   "Each time you build your first settlement on a small island, you earn an
+   *    additional 2 VPs... You may receive the additional 2 VPs for each of the
+   *    small islands — it does not matter if other players have already built
+   *    settlements on that island."
+   *
+   * Computed from the board rather than tracked as it happens. The award is per
+   * player and per island, it is granted on the *first* building and never
+   * again, and nothing in Seafarers removes a settlement — so the set of
+   * islands a player has built on is exactly the set they have been paid for.
+   * Deriving it keeps one source of truth instead of a tally that could drift
+   * from the board.
+   */
+  scoreContribution: (state, player): number => {
+    const slice = seafarersStateOf(state);
+    if (slice === null) return 0;
+
+    const settled = new Set<string>();
+    for (const [nodeId, building] of Object.entries(state.buildings)) {
+      if (building.player !== player) continue;
+      for (const tileId of state.board.nodes[nodeId]?.tiles ?? []) {
+        const island = state.board.tiles[tileId]?.island;
+        if (island != null) settled.add(island);
+      }
+    }
+
+    let points = 0;
+    for (const island of settled) points += slice.islandVp[island] ?? 0;
+    return points;
+  },
 
   extraLegalMoves: (state, player): Action[] => {
     // Ships are built and moved in the Action phase (p.2). A Special Building

@@ -4,6 +4,7 @@ import { createGame } from "../setup/createGame.js";
 import { reduce } from "../reducers/reduce.js";
 import { legalMoves } from "../queries/legalMoves.js";
 import { canMoveShip, canPlaceShip, shipSpots } from "../queries/placement.js";
+import { publicVictoryPoints } from "../queries/scores.js";
 import { assertInvariants } from "../state/invariants.js";
 import {
   completeSetup,
@@ -137,7 +138,9 @@ function readyToSail(): { state: GameState; node: NodeId } {
 describe("the module", () => {
   it("keeps a slice of state, which a base game does not", () => {
     const sea = seaGame();
-    expect(seafarersStateOf(sea)?.settledIslands).toEqual({ 0: [], 1: [] });
+    // The scenario's island values, copied in at setup: the engine cannot read
+    // a scenario later, and the board graph records only which island a tile is.
+    expect(seafarersStateOf(sea)?.islandVp).toEqual({ home: 0 });
     expect(seafarersStateOf(newGame(3))).toBeNull();
   });
 
@@ -146,6 +149,109 @@ describe("the module", () => {
     const kinds = new Set(legalMoves(base, 0).map((m) => m.t));
     expect(kinds.has("buildShip")).toBe(false);
     expect(kinds.has("moveShip")).toBe(false);
+  });
+});
+
+describe("island victory points (p.4)", () => {
+  /** The sea board, with a second island worth 2 VP for a first settlement. */
+  function twoIslandGame(): GameState {
+    const base = seaScenario();
+    const scenario: Scenario = {
+      ...base,
+      cells: base.cells.map((cell) =>
+        // Turn one ringing sea hex into a far island worth points.
+        cell.coord[0] === 2 && cell.coord[1] === 0
+          ? { coord: cell.coord, slot: "land", terrain: "mountain", island: "far" }
+          : cell,
+      ),
+      numbers: {
+        mode: "path",
+        sequence: [5, 9, 4, 6],
+        path: [...LAND, [2, 0]],
+        skipTerrains: ["desert", "sea"],
+      },
+      islands: [
+        { id: "home", vpForFirstSettlement: 0 },
+        { id: "far", vpForFirstSettlement: 2 },
+      ],
+    };
+    return createGame({ scenario, seed: "islands", playerNames: ["P0", "P1"] });
+  }
+
+  /** Every island an intersection touches, ignoring sea and empty space. */
+  function islandsAt(state: GameState, node: NodeId): Set<string> {
+    return new Set(
+      (state.board.nodes[node]?.tiles ?? [])
+        .map((t) => state.board.tiles[t]?.island)
+        .filter((i): i is string => i != null),
+    );
+  }
+
+  /**
+   * An intersection touching `island` and no other.
+   *
+   * The distinction matters here. [2, 0] shares two corners with the main
+   * island, so "touches far" would also match a corner of home. Such a corner
+   * happens to score the same — home is worth nothing — but the test would then
+   * be measuring a straddle rather than a settlement on a separate island,
+   * which is the rule under test. That case gets its own test below.
+   */
+  function nodeOn(state: GameState, island: string): NodeId {
+    for (const id of Object.keys(state.board.nodes)) {
+      const islands = islandsAt(state, id);
+      if (islands.size === 1 && islands.has(island)) return id;
+    }
+    throw new Error(`no intersection touching only ${island}`);
+  }
+
+  /** An intersection where two named islands meet. */
+  function nodeOnBoth(state: GameState, a: string, b: string): NodeId {
+    for (const id of Object.keys(state.board.nodes)) {
+      const islands = islandsAt(state, id);
+      if (islands.has(a) && islands.has(b)) return id;
+    }
+    throw new Error(`no intersection joining ${a} and ${b}`);
+  }
+
+  it("pays nothing for the home island", () => {
+    const state = intoMainPhase(twoIslandGame(), 0);
+    const home = withSettlement(state, 0, nodeOn(state, "home"));
+    expect(publicVictoryPoints(home, 0)).toBe(1); // the settlement itself
+  });
+
+  it("pays for a first settlement on a scoring island", () => {
+    const state = intoMainPhase(twoIslandGame(), 0);
+    const far = withSettlement(state, 0, nodeOn(state, "far"));
+    // One for the settlement, two for reaching the island.
+    expect(publicVictoryPoints(far, 0)).toBe(3);
+  });
+
+  it("pays each player for the same island independently", () => {
+    const state = intoMainPhase(twoIslandGame(), 0);
+    const node = nodeOn(state, "far");
+    const mine = withSettlement(state, 0, node);
+    expect(publicVictoryPoints(mine, 0)).toBe(3);
+    // p.4: "it does not matter if other players have already built
+    // settlements on that island."
+    expect(publicVictoryPoints(mine, 1)).toBe(0);
+  });
+
+  it("pays for every island a single settlement touches", () => {
+    // A corner where the two islands meet is paid for both. Worth pinning
+    // deliberately rather than leaving to chance, since the helper above goes
+    // out of its way to avoid these corners elsewhere.
+    const state = intoMainPhase(twoIslandGame(), 0);
+    const join = nodeOnBoth(state, "home", "far");
+    expect(islandsAt(state, join)).toEqual(new Set(["home", "far"]));
+    // One for the settlement, nothing for home, two for far.
+    expect(publicVictoryPoints(withSettlement(state, 0, join), 0)).toBe(3);
+  });
+
+  it("pays a base game nothing, because no module scores", () => {
+    const base = intoMainPhase(completeSetup(newGame(3)), 0);
+    const before = publicVictoryPoints(base, 0);
+    expect(before).toBeGreaterThanOrEqual(2); // two setup settlements
+    expect(seafarersStateOf(base)).toBeNull();
   });
 });
 

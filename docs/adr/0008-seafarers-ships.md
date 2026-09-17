@@ -31,6 +31,32 @@ module owns their reducers. `reduce()` finds no case for them in its own switch
 and consults the module registry, exactly as ADR 0007 describes. No base-game
 rule changed to accommodate them.
 
+### Island victory points are derived, not tracked
+
+p.4 pays 2 VP for your first settlement on a small island, per player: "it does
+not matter if other players have already built settlements on that island."
+
+The obvious implementation is a tally updated when a settlement lands, but the
+module has no way to see that happen — `reduce()` handles `buildSettlement` in
+its own switch, so `moduleReduce` is never consulted, and `interceptAction` only
+inspects. More to the point, a tally is unnecessary: the award is once per
+island per player and nothing in Seafarers ever removes a settlement, so the
+islands a player has built on _are_ the islands they have been paid for.
+`scoreContribution` derives it from the board, which keeps one source of truth
+instead of a counter that could drift from the pieces.
+
+What the module does keep is `islandVp`, the per-island values copied out of the
+scenario by `setupState`. The board graph records which island a tile belongs to
+but not what it is worth, and the engine cannot read a scenario at runtime — the
+same constraint that moved piece counts into `GameConfig`.
+
+**Known limitation.** The Four Islands scenario (p.6) gives each player their
+own home island, so "unexplored" is per player. A scenario pins one
+`vpForFirstSettlement` per island, which fits Heading for New Shores and Through
+the Desert but not Four Islands. Supporting it needs either a per-player home
+island in the scenario format or a module that records each player's starting
+island during setup. That is a Phase 2 decision and is not made here.
+
 ### The open-end test subsumes the "two buildings" clause
 
 p.2 lists four restrictions on moving a ship. Three are implemented directly.
