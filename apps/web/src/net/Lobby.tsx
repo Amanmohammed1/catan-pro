@@ -89,7 +89,17 @@ function JoinForm({
   readonly net: ReturnType<typeof useConnection>;
 }): React.JSX.Element {
   const [nickname, setNickname] = useState("");
-  const [code, setCode] = useState("");
+  // `?join=ABCDE` fills the code in, so a room can be shared as a link — which
+  // is how `pnpm bots` hands you its room.
+  const [code, setCode] = useState(() => {
+    try {
+      return (new URLSearchParams(window.location.search).get("join") ?? "")
+        .toUpperCase()
+        .slice(0, 5);
+    } catch {
+      return "";
+    }
+  });
   const [seats, setSeats] = useState(4);
 
   const named = nickname.trim() !== "";

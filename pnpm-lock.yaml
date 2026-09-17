@@ -256,6 +256,9 @@ importers:
       '@hexport/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@hexport/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@hexport/scenarios':
         specifier: workspace:*
         version: link:../../packages/scenarios
