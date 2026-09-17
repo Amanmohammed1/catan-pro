@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { prefersReducedMotion } from "../ui/motion.js";
 import type { BoardGraph, Terrain, TileId } from "@hexport/engine";
 import { createHexTileGeometry, createShoreGeometry } from "./geometries.js";
 import { BOARD_TOP, orderedTileIds, tilePosition } from "./layout3d.js";
@@ -21,11 +23,14 @@ export const TILE_SCALE = 0.955;
 export function Tiles({
   board,
   highlighted,
+  producing,
   onPick,
 }: {
   readonly board: BoardGraph;
   /** Tiles the robber may move to. */
   readonly highlighted: ReadonlySet<TileId>;
+  /** Tiles that just paid out, flashed for a moment after the roll. */
+  readonly producing?: ReadonlySet<TileId> | undefined;
   readonly onPick?: ((tile: TileId) => void) | undefined;
 }): React.JSX.Element {
   const tileGeometry = useMemo(() => createHexTileGeometry(), []);
@@ -66,6 +71,15 @@ export function Tiles({
         if (tile === undefined) return null;
         const [x, , z] = tilePosition(tile.coord);
         return <TileHalo key={id} x={x} z={z} />;
+      })}
+
+      {/* Hexes that just produced, so a roll is visible on the board and not
+          only in the log. */}
+      {[...(producing ?? [])].map((id) => {
+        const tile = board.tiles[id];
+        if (tile === undefined) return null;
+        const [x, , z] = tilePosition(tile.coord);
+        return <ProductionFlash key={`p-${id}`} x={x} z={z} />;
       })}
     </group>
   );
@@ -195,6 +209,54 @@ function Shore({
     >
       <meshStandardMaterial color="#d8c08e" roughness={1} />
     </instancedMesh>
+  );
+}
+
+/** A bright hex outline that fades as it lifts, for a hex that just paid out. */
+function ProductionFlash({
+  x,
+  z,
+}: {
+  readonly x: number;
+  readonly z: number;
+}): React.JSX.Element {
+  const mesh = useRef<THREE.Mesh>(null);
+  const born = useRef(0);
+
+  useFrame(({ clock }) => {
+    const current = mesh.current;
+    if (current === null) return;
+    if (born.current === 0) born.current = clock.getElapsedTime();
+
+    const age = clock.getElapsedTime() - born.current;
+    const material = current.material as THREE.MeshBasicMaterial;
+    if (prefersReducedMotion()) {
+      material.opacity = age < 0.9 ? 0.5 : 0;
+      return;
+    }
+    const t = Math.min(1, age / 1.1);
+    material.opacity = 0.85 * (1 - t);
+    current.position.y = BOARD_TOP + 0.012 + t * 0.12;
+    current.scale.setScalar(1 + t * 0.14);
+  });
+
+  return (
+    <mesh
+      ref={mesh}
+      position={[x, BOARD_TOP + 0.012, z]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      raycast={() => null}
+    >
+      <ringGeometry args={[0.72, 0.95, 6, 1, Math.PI / 6]} />
+      <meshBasicMaterial
+        color="#ffe9b0"
+        transparent
+        opacity={0.85}
+        side={THREE.DoubleSide}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </mesh>
   );
 }
 

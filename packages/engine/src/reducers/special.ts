@@ -68,6 +68,9 @@ export function recomputeSpecialCards(state: GameState): Recomputed {
 export function checkVictory(state: GameState): Recomputed {
   if (state.winner !== null) return { state, events: [] };
   if (state.phase.k === "setup") return { state, events: [] };
+  // A Special Building window is not your turn: reaching the target while
+  // building in one does not win until your own turn comes round (ADR 0006).
+  if (state.phase.k === "specialBuild") return { state, events: [] };
 
   const player = state.currentPlayer;
   const points = victoryPoints(state, player);

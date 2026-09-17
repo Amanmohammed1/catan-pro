@@ -191,6 +191,7 @@ export {
 } from "./queries/placement.js";
 
 export {
+  canCounterTrade,
   canOfferTrade,
   canPlayDevCard,
   discardCount,
@@ -215,3 +216,20 @@ export {
   type ProductionResult,
 } from "./reducers/production.js";
 export { checkVictory, recomputeSpecialCards, settle } from "./reducers/special.js";
+
+// ---------------------------------------------------------------------------
+// Rule modules (CLAUDE.md golden rule 7). A scenario names the modules it plays
+// with; nothing outside modules/ asks which expansion is in play.
+export {
+  BASE_SUPPLY,
+  UnknownModuleError,
+  baseModule,
+  ext56Module,
+  extraLegalMoves,
+  resolveModules,
+  supplyFor,
+  turnHandoff,
+  type RuleModule,
+  type Supply,
+  type TurnHandoff,
+} from "./modules/index.js";

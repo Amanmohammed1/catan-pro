@@ -55,13 +55,33 @@ const terrainBag = z.object({
     .min(1),
 });
 
-const numbers = z.object({
-  mode: z.literal("path"),
-  sequence: z.array(z.number().int().min(2).max(12)),
-  path: z.array(axial),
-  skipTerrains: z.array(terrain),
-  constraints: z.object({ noAdjacentRedNumbers: z.boolean().optional() }).optional(),
-});
+const numberConstraints = z
+  .object({ noAdjacentRedNumbers: z.boolean().optional() })
+  .optional();
+
+const numbers = z.discriminatedUnion("mode", [
+  z.object({
+    mode: z.literal("path"),
+    sequence: z.array(z.number().int().min(2).max(12)),
+    path: z.array(axial),
+    skipTerrains: z.array(terrain),
+    constraints: numberConstraints,
+  }),
+  z.object({
+    mode: z.literal("bag"),
+    tokens: z
+      .array(
+        z.object({
+          value: z.number().int().min(2).max(12),
+          count: z.number().int().min(0),
+        }),
+      )
+      .min(1),
+    path: z.array(axial),
+    skipTerrains: z.array(terrain),
+    constraints: numberConstraints,
+  }),
+]);
 
 const port = z.object({
   at: axial,
@@ -242,11 +262,18 @@ export const scenarioSchema = baseScenario.superRefine((value, ctx) => {
       }
     }
     const expected = pinnedNumbered + drawnOnPath - skipsInBags;
-    if (expected !== value.numbers.sequence.length) {
+    // A `path` board declares its tokens in order; a `bag` board declares how
+    // many of each. Either way the count has to match the board exactly.
+    const declared =
+      value.numbers.mode === "bag"
+        ? value.numbers.tokens.reduce((sum, token) => sum + token.count, 0)
+        : value.numbers.sequence.length;
+
+    if (expected !== declared) {
       ctx.addIssue({
         code: "custom",
-        path: ["numbers", "sequence"],
-        message: `Number sequence has ${String(value.numbers.sequence.length)} tokens but the board needs ${String(expected)}.`,
+        path: ["numbers", value.numbers.mode === "bag" ? "tokens" : "sequence"],
+        message: `The scenario declares ${String(declared)} tokens but the board needs ${String(expected)}.`,
       });
     }
   }

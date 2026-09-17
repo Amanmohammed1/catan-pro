@@ -76,8 +76,10 @@ packages/
   engine/         PURE. rules, state, geometry, legalMoves       [exists]
   protocol/       zod schemas for the wire format                [exists]
   scenarios/      data-driven board definitions (JSON)           [exists]
+  bots/           how a bot picks its move (server + harness)    [exists]
   ui/             shared DOM components                          [not yet]
-  assets/         glTF models, textures, audio (CC0 / original)  [not yet]
+  assets/         audio (CC0). Everything visual is generated
+                  in code instead — ADR 0004                     [exists]
 docs/
   HANDOVER.md     state of the project, read this first
   rules/          rulebook PDFs (reference only, gitignored)
@@ -198,12 +200,25 @@ pnpm install
 pnpm --filter @hexport/server dev   # game server on :8787
 pnpm dev                            # client on :5173, proxies /ws
 
+pnpm bots                           # a room of bots to play against
+pnpm bots --players 6 --bots 5
+
 pnpm verify                         # lint, typecheck, purity guards, both lanes
 pnpm test                           # fast lane (~11s)
-pnpm test:slow                      # whole-game runs over real sockets (~80s)
+pnpm test:slow                      # whole-game runs over real sockets (~14s)
 pnpm fuzz                           # 10,000 self-play games (~114s)
 pnpm fuzz --games 500 --players 3
+pnpm fuzz --games 10000 --players 6 --scenario classic-5-6
+pnpm shots                          # headless screenshots into .shots/
 ```
+
+Bots can also be added from the lobby when creating a room: the server plays
+those seats itself, from the same legal-move list a player is sent.
+
+**Look at what you changed.** `pnpm shots` renders the real client in a headless
+browser. Tests check behaviour; nothing else checks the picture, and the client
+once shipped with every number token buried inside the tiles and every heading
+drawn black-on-black while 383 tests passed.
 
 Client modes, by query string: default is online, `?hotseat=1` plays every seat
 on one screen, `?debug=1` is the M0 geometry renderer.

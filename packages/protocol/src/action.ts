@@ -71,8 +71,16 @@ export const actionSchema = z.discriminatedUnion("t", [
     receive: resourceCounts,
   }),
   z.object({ t: z.literal("respondTrade"), player, accept: z.boolean() }),
+  z.object({
+    t: z.literal("counterTrade"),
+    player,
+    give: resourceCounts,
+    receive: resourceCounts,
+  }),
   z.object({ t: z.literal("confirmTrade"), player, with: player }),
   z.object({ t: z.literal("cancelTrade"), player }),
+
+  z.object({ t: z.literal("passSpecialBuild"), player }),
 ]);
 
 export type WireAction = z.infer<typeof actionSchema>;

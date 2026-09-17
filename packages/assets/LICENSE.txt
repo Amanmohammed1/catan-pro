@@ -1,0 +1,47 @@
+Media in this package
+=====================
+
+Every file here is Creative Commons Zero (CC0 1.0 Universal, public domain
+dedication): https://creativecommons.org/publicdomain/zero/1.0/
+
+CLAUDE.md: "Never commit binary art assets without a LICENSE.txt next to them
+naming the source and license." This is that file.
+
+
+audio/ — sound effects
+----------------------
+
+By Kenney Vleugels (https://kenney.nl), released under CC0. From the pack's own
+License.txt:
+
+    License (Creative Commons Zero, CC0)
+    http://creativecommons.org/publicdomain/zero/1.0/
+
+    You may use these assets in personal and commercial projects.
+    Credit (Kenney or www.kenney.nl) would be nice but is not mandatory.
+
+Credit is given here, gladly.
+
+  file          source pack           original file
+  ------------  -------------------   ------------------------------
+  dice.ogg      Casino Audio 1.1      dice-throw-1.ogg
+  build.ogg     Casino Audio 1.1      chip-lay-1.ogg
+  city.ogg      Casino Audio 1.1      chips-stack-4.ogg
+  card.ogg      Casino Audio 1.1      card-slide-1.ogg
+  trade.ogg     Casino Audio 1.1      chips-handle-1.ogg
+  steal.ogg     Casino Audio 1.1      cards-pack-take-out-1.ogg
+  turn.ogg      Interface Sounds      bong_001.ogg
+  click.ogg     Interface Sounds      select_001.ogg
+  victory.ogg   Music Jingles         Steel jingles/jingles_STEEL00.ogg
+
+Files were renamed to the names the game asks for and are otherwise unmodified.
+
+Downloaded from:
+  https://kenney.nl/assets/casino-audio
+  https://kenney.nl/assets/interface-sounds
+  https://kenney.nl/assets/music-jingles
+
+Nothing here comes from the published board game: no artwork, no card text, no
+logos (CLAUDE.md, "Codename"). Everything else the client draws — terrain,
+tokens, pieces, cards — is generated in code rather than shipped as art; see
+docs/adr/0004-generated-art-and-self-hosted-fonts.md.

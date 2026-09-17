@@ -163,6 +163,23 @@ function tradeActions(state: GameState, player: PlayerId): Action[] {
  * any enumerated move. That keeps the reducer the only authority, which is what
  * golden rule 3 is protecting.
  */
+/**
+ * May this player answer an open offer with terms of their own?
+ *
+ * The same judgement as `canOfferTrade`, for the same reason: the space of
+ * counter-offers is every pair of resource multisets, so the UI asks "may I do
+ * this?" and `reduce()` validates the contents (ADR 0003).
+ */
+export function canCounterTrade(state: GameState, player: PlayerId): boolean {
+  if (state.winner !== null) return false;
+  if (state.phase.k !== "tradeOffer") return false;
+  if (state.phase.offer.from === player) return false;
+  if (state.phase.responses[player] === undefined) return false;
+  const seat = state.players[player];
+  if (seat === undefined) return false;
+  return totalResources(seat.resources) > 0;
+}
+
 export function canOfferTrade(state: GameState, player: PlayerId): boolean {
   if (state.winner !== null) return false;
   if (state.phase.k !== "main") return false;
@@ -263,8 +280,10 @@ export function legalMoves(state: GameState, player: PlayerId): Action[] {
 
     case "tradeOffer": {
       if (phase.offer.from === player) {
+        // Both an acceptance and a counter are terms the other player has
+        // already agreed to, so both are confirmable.
         const accepted = Object.entries(phase.responses)
-          .filter(([, response]) => response === "accept")
+          .filter(([, response]) => response === "accept" || response === "counter")
           .map(([seatId]) => Number(seatId));
 
         return [
@@ -283,6 +302,13 @@ export function legalMoves(state: GameState, player: PlayerId): Action[] {
       const out: Action[] = [{ t: "respondTrade", player, accept: false }];
       if (canPay) out.unshift({ t: "respondTrade", player, accept: true });
       return out;
+    }
+
+    case "specialBuild": {
+      // The 5–6 Special Building Phase: build and buy, nothing else. No trade
+      // of any kind and no development card may be played (ADR 0006).
+      if (phase.queue[0] !== player) return [];
+      return [...buildActions(state, player), { t: "passSpecialBuild", player }];
     }
 
     case "gameOver":

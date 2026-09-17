@@ -79,6 +79,8 @@ export function describeEvent(event: GameEvent, names: readonly string[]): strin
       return `${name(event.player)} offered a trade`;
     case "tradeResponded":
       return `${name(event.player)} ${event.accept ? "accepted" : "declined"}`;
+    case "tradeCountered":
+      return `${name(event.player)} countered with different terms`;
     case "tradeCompleted":
       return `${name(event.from)} traded with ${name(event.to)}`;
     case "tradeCancelled":
@@ -97,6 +99,10 @@ export function describeEvent(event: GameEvent, names: readonly string[]): strin
       return `${name(event.player)} placed a settlement`;
     case "setupResourcesGranted":
       return `${name(event.player)} collected starting resources`;
+    case "specialBuildStarted":
+      return `Special building: ${event.players.map(name).join(", ")}`;
+    case "specialBuildPassed":
+      return `${name(event.player)} finished building`;
     case "gameEnded":
       return `${name(event.winner)} wins with ${String(event.points)} points!`;
     default:

@@ -20,7 +20,14 @@ export interface TradeOffer {
   readonly receive: ResourceCounts;
 }
 
-export type TradeResponse = "pending" | "accept" | "decline";
+/**
+ * How a player answered an open offer.
+ *
+ * "counter" means they answered with terms of their own, held in the phase's
+ * `counters`. The offering player may then confirm either an acceptance or a
+ * counter — both are a deal that player has already agreed to.
+ */
+export type TradeResponse = "pending" | "accept" | "decline" | "counter";
 
 export type Phase =
   /**
@@ -68,6 +75,11 @@ export type Phase =
       readonly k: "tradeOffer";
       readonly offer: TradeOffer;
       readonly responses: Readonly<Record<PlayerId, TradeResponse>>;
+      /**
+       * Terms proposed back by a responder, keyed by that player. `give` and
+       * `receive` are from the counter-offering player's point of view.
+       */
+      readonly counters: Readonly<Record<PlayerId, TradeOffer>>;
     }
   /**
    * Road Building progress card: two free roads (p.10).
@@ -80,6 +92,21 @@ export type Phase =
       readonly k: "roadBuilding";
       readonly remaining: 1 | 2;
       readonly returnTo: "roll" | "main";
+    }
+  /**
+   * The Special Building Phase of the 5–6 player game.
+   *
+   * After a turn ends, every other player in clockwise order gets one window in
+   * which they may build and buy development cards — but not trade, and not
+   * play a development card. Provided by the `ext56` rule module; a base game
+   * never enters this phase. See ADR 0006.
+   */
+  | {
+      readonly k: "specialBuild";
+      /** Seats still owed a window, in clockwise order. The first is acting. */
+      readonly queue: readonly PlayerId[];
+      /** Whose turn begins once the queue empties. */
+      readonly nextPlayer: PlayerId;
     }
   | { readonly k: "gameOver"; readonly winner: PlayerId };
 

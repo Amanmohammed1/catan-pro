@@ -7,7 +7,7 @@ vi.mock("../three/BoardCanvas.js", () => ({ BoardCanvas: () => null }));
 import { describe, it, expect, afterEach } from "vitest";
 import { act } from "react";
 import type { Root } from "react-dom/client";
-import { completeSetupInUi, drive, mountGame, text } from "./uiDriver.js";
+import { click, completeSetupInUi, drive, mountGame, text } from "./uiDriver.js";
 
 /**
  * A whole hot-seat game, played to a winner through the DOM.
@@ -71,5 +71,15 @@ describe("a complete game", () => {
     expect(steps).toBeLessThan(40000);
     expect(text(el)).toContain("wins");
     expect(el.querySelector("[data-winner]")).not.toBeNull();
+
+    // "Play again" deals a new board to the same people (M4). Hot-seat does it
+    // locally; online the host asks the server for it.
+    const again = el.querySelector<HTMLButtonElement>('button[data-action="rematch"]');
+    expect(again).not.toBeNull();
+    click(again);
+
+    expect(el.querySelector("[data-winner]")).toBeNull();
+    expect(readTurn(el)).toBe(0);
+    expect(el.querySelectorAll("button[data-placement]").length).toBeGreaterThan(0);
   }, 180000);
 });

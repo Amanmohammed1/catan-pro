@@ -23,12 +23,17 @@ export interface UiSettings {
   readonly logOpen: boolean;
   /** Set by the renderer when the frame rate cannot hold; not persisted. */
   readonly lowPower: boolean;
+  readonly sound: boolean;
+  /** 0 to 1. */
+  readonly volume: number;
 
   readonly toggleListView: () => void;
   readonly toggleStats: () => void;
   readonly setEffects: (value: EffectsSetting) => void;
   readonly setLogOpen: (open: boolean) => void;
   readonly setLowPower: (value: boolean) => void;
+  readonly toggleSound: () => void;
+  readonly setVolume: (level: number) => void;
 }
 
 /**
@@ -67,6 +72,8 @@ export const useUi = create<UiSettings>()(
       effects: "auto",
       logOpen: false,
       lowPower: false,
+      sound: true,
+      volume: 0.7,
 
       toggleListView: () => {
         set((s) => ({ listView: !s.listView }));
@@ -83,11 +90,22 @@ export const useUi = create<UiSettings>()(
       setLowPower: (value) => {
         set({ lowPower: value });
       },
+      toggleSound: () => {
+        set((s) => ({ sound: !s.sound }));
+      },
+      setVolume: (level) => {
+        set({ volume: Math.min(1, Math.max(0, level)) });
+      },
     }),
     {
       name: "hexport.ui",
       storage: createJSONStorage(() => safeStorage),
-      partialize: (s) => ({ listView: s.listView, effects: s.effects }),
+      partialize: (s) => ({
+        listView: s.listView,
+        effects: s.effects,
+        sound: s.sound,
+        volume: s.volume,
+      }),
     },
   ),
 );

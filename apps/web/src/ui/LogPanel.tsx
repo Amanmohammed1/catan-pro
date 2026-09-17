@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { GameEvent } from "@hexport/engine";
 import { describeEvent } from "../game/describeEvent.js";
+import { hasTargets } from "../game/eventTargets.js";
 
 /**
  * The game log, and chat when playing online.
@@ -16,10 +17,16 @@ export function LogPanel({
   colors,
   chat,
   onChat,
+  onHighlight,
 }: {
   readonly log: readonly GameEvent[];
   readonly names: readonly string[];
   readonly colors: readonly string[];
+  /**
+   * Show where a line happened, while the pointer or keyboard focus is on it.
+   * Called with null when it leaves.
+   */
+  readonly onHighlight?: ((event: GameEvent | null) => void) | undefined;
   readonly chat?: readonly {
     from: string;
     player: number | null;
@@ -93,7 +100,30 @@ export function LogPanel({
                 <span aria-hidden="true" className="h-px flex-1 bg-gold/15" />
               </li>
             ) : (
-              <li key={line.index} className="flex gap-2 py-[3px] text-ink-300">
+              <li
+                key={line.index}
+                // Hovering a line lights up the spot it is about. Focus does
+                // the same, so it is not a mouse-only affordance.
+                tabIndex={hasTargets(line.event) ? 0 : undefined}
+                onMouseEnter={() => {
+                  onHighlight?.(line.event);
+                }}
+                onMouseLeave={() => {
+                  onHighlight?.(null);
+                }}
+                onFocus={() => {
+                  onHighlight?.(line.event);
+                }}
+                onBlur={() => {
+                  onHighlight?.(null);
+                }}
+                className={[
+                  "flex gap-2 rounded px-1 py-[3px] text-ink-300",
+                  hasTargets(line.event)
+                    ? "cursor-help hover:bg-gold/10 focus-visible:bg-gold/10"
+                    : "",
+                ].join(" ")}
+              >
                 <span
                   aria-hidden="true"
                   className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full"

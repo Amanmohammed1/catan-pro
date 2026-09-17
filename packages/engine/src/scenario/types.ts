@@ -94,16 +94,39 @@ export interface NumberConstraints {
   readonly noAdjacentRedNumbers?: boolean;
 }
 
-export interface ScenarioNumbers {
-  readonly mode: "path";
-  /** Tokens in the order they are laid down. */
-  readonly sequence: readonly number[];
-  /** Cell coordinates in the order they receive tokens. */
-  readonly path: readonly Axial[];
-  /** Terrains that are skipped without consuming a token. */
-  readonly skipTerrains: readonly Terrain[];
-  readonly constraints?: NumberConstraints;
+export interface NumberBagEntry {
+  readonly value: number;
+  readonly count: number;
 }
+
+/**
+ * How number tokens are laid down.
+ *
+ * `path` walks a fixed sequence, which is how the base game's lettered tokens
+ * work: A to R in order along the spiral. `bag` shuffles a declared multiset of
+ * tokens with the game's own generator first — used where the box's letter
+ * order is not something we can cite (see ADR 0006), but the composition is.
+ * Both walk the same path and skip the same terrains.
+ */
+export type ScenarioNumbers =
+  | {
+      readonly mode: "path";
+      /** Tokens in the order they are laid down. */
+      readonly sequence: readonly number[];
+      /** Cell coordinates in the order they receive tokens. */
+      readonly path: readonly Axial[];
+      /** Terrains that are skipped without consuming a token. */
+      readonly skipTerrains: readonly Terrain[];
+      readonly constraints?: NumberConstraints;
+    }
+  | {
+      readonly mode: "bag";
+      /** The tokens in the box, shuffled before they are laid down. */
+      readonly tokens: readonly NumberBagEntry[];
+      readonly path: readonly Axial[];
+      readonly skipTerrains: readonly Terrain[];
+      readonly constraints?: NumberConstraints;
+    };
 
 export interface ScenarioPort {
   /** The hex the port sits against. */

@@ -12,6 +12,7 @@ import type { WireView } from "@hexport/protocol";
 import { Button, Cost, ResourceChip } from "./Button.js";
 import { Avatar } from "./Avatar.js";
 import { devCardLabel } from "./HandDock.js";
+import { OfferBuilder, OfferResponse, OfferStandings } from "./TradePanel.js";
 import { RESOURCE_NAME } from "./cards/ResourceArt.js";
 
 /**
@@ -81,9 +82,49 @@ export function ActionBar(props: ActionBarProps): React.JSX.Element | null {
     case "main":
       return <MainControls {...props} />;
 
+    case "specialBuild":
+      return <SpecialBuildControls {...props} />;
+
     default:
       return null;
   }
+}
+
+/**
+ * The 5–6 player Special Building window: build and buy, nothing else.
+ *
+ * No trade of any kind and no development card may be played, so those controls
+ * are absent rather than disabled — the rules do not allow them at all here
+ * (ADR 0006).
+ */
+function SpecialBuildControls({
+  view,
+  mode,
+  onMode,
+  onAction,
+}: ActionBarProps): React.JSX.Element {
+  const pass = view.legalMoves.find((m) => m.t === "passSpecialBuild");
+
+  return (
+    <div className="flex flex-col gap-3.5">
+      <Hint>
+        Your building window, between turns. You may build and buy cards, but
+        not trade or play a development card.
+      </Hint>
+
+      <BuildGroup view={view} mode={mode} onMode={onMode} onAction={onAction} />
+
+      <Button
+        intent="primary"
+        data-action="pass-special-build"
+        onClick={() => {
+          if (pass !== undefined) onAction(pass);
+        }}
+      >
+        Done building
+      </Button>
+    </div>
+  );
 }
 
 function Hint({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
@@ -150,11 +191,51 @@ function MainControls({
   onAction,
 }: ActionBarProps): React.JSX.Element {
   const moves = view.legalMoves;
-  const can = (t: Action["t"]): boolean => moves.some((m) => m.t === t);
   const find = (t: Action["t"]): Action | undefined => moves.find((m) => m.t === t);
 
   return (
     <div className="flex flex-col gap-3.5">
+      <BuildGroup view={view} mode={mode} onMode={onMode} onAction={onAction} />
+
+      {mode !== "none" && (
+        <p className="rounded-[10px] border border-gold/25 bg-gold/8 px-2.5 py-2 text-[12px] text-gold">
+          Choose a glowing spot on the board, or from the list below. Press{" "}
+          <Key>Esc</Key> to cancel.
+        </p>
+      )}
+
+      <DevCardControls view={view} onAction={onAction} />
+      <BankTrade view={view} onAction={onAction} />
+      <OfferTrade view={view} onAction={onAction} />
+
+      <Button
+        intent="primary"
+        data-action="end-turn"
+        hint={<Key>E</Key>}
+        onClick={() => {
+          const action = find("endTurn");
+          if (action !== undefined) onAction(action);
+        }}
+      >
+        End turn
+      </Button>
+    </div>
+  );
+}
+
+/** The four things you can spend on, with their costs. */
+function BuildGroup({
+  view,
+  mode,
+  onMode,
+  onAction,
+}: ActionBarProps): React.JSX.Element {
+  const moves = view.legalMoves;
+  const can = (t: Action["t"]): boolean => moves.some((m) => m.t === t);
+  const find = (t: Action["t"]): Action | undefined => moves.find((m) => m.t === t);
+
+  return (
+    <>
       <Group label="Build">
         <Button
           data-action="build-road"
@@ -214,30 +295,7 @@ function MainControls({
           Development card
         </Button>
       </Group>
-
-      {mode !== "none" && (
-        <p className="rounded-[10px] border border-gold/25 bg-gold/8 px-2.5 py-2 text-[12px] text-gold">
-          Choose a glowing spot on the board, or from the list below. Press{" "}
-          <Key>Esc</Key> to cancel.
-        </p>
-      )}
-
-      <DevCardControls view={view} onAction={onAction} />
-      <BankTrade view={view} onAction={onAction} />
-      <OfferTrade view={view} onAction={onAction} />
-
-      <Button
-        intent="primary"
-        data-action="end-turn"
-        hint={<Key>E</Key>}
-        onClick={() => {
-          const action = find("endTurn");
-          if (action !== undefined) onAction(action);
-        }}
-      >
-        End turn
-      </Button>
-    </div>
+    </>
   );
 }
 
@@ -399,9 +457,8 @@ function OfferTrade({
   readonly view: WireView;
   readonly onAction: (action: Action) => void;
 }): React.JSX.Element | null {
-  const [give, setGive] = useState<ResourceCounts>(emptyResources());
-  const [want, setWant] = useState<ResourceCounts>(emptyResources());
-
+  // ADR 0003: the space of offers is unbounded, so legalMoves does not list
+  // them. Whether one may be opened at all is a question of phase and holdings.
   const canOffer =
     view.phase.k === "main" &&
     view.currentPlayer === view.you &&
@@ -410,111 +467,27 @@ function OfferTrade({
 
   if (!canOffer) return null;
 
-  const ready = totalResources(give) > 0 && totalResources(want) > 0;
-  const affordable = RESOURCE_KINDS.every(
-    (kind) => give[kind] <= view.self.resources[kind],
-  );
-
   return (
     <Group label="Offer a trade">
       <Disclosure label="Propose to the table" hint="players answer">
-        <div className="flex flex-col gap-2">
-          <Picker
-            label="You give"
-            value={give}
-            max={view.self.resources}
-            onChange={setGive}
-          />
-          <Picker label="You want" value={want} onChange={setWant} />
-          <Button
-            size="sm"
-            intent="primary"
-            data-action="send-offer"
-            disabled={!ready || !affordable}
-            reason={
-              !affordable ? "You do not hold that much" : "Put something on both sides"
-            }
-            onClick={() => {
-              onAction({ t: "offerTrade", player: view.you, give, receive: want });
-              setGive(emptyResources());
-              setWant(emptyResources());
-            }}
-          >
-            Send offer
-          </Button>
-        </div>
+        <OfferBuilder view={view} onAction={onAction} />
       </Disclosure>
     </Group>
   );
 }
 
+/**
+ * An open offer, from whichever side of it you are on: the player who made it
+ * watches the answers come in, everyone else takes it, refuses it, or says what
+ * they would take instead.
+ */
 function TradeOfferControls({ view, onAction }: ActionBarProps): React.JSX.Element {
   if (view.phase.k !== "tradeOffer") return <></>;
-  const offer = view.phase.offer;
-  const players = view.players;
 
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="rounded-[11px] border border-gold/20 bg-surface-700/70 px-3 py-2.5 text-xs">
-        <p className="mb-1.5 flex items-center gap-2 font-medium text-ink-100">
-          <Avatar seat={offer.from} color={players[offer.from]?.color ?? "#888"} size={22} />
-          {players[offer.from]?.name} offers
-        </p>
-        <p className="flex flex-wrap items-center gap-1.5 text-ink-300">
-          gives <Summary counts={offer.give} /> for <Summary counts={offer.receive} />
-        </p>
-      </div>
-
-      {view.legalMoves.length === 0 && (
-        <p className="text-xs text-ink-500">Waiting for the others to answer…</p>
-      )}
-
-      {view.legalMoves.map((move, index) => {
-        if (move.t === "respondTrade") {
-          return (
-            <Button
-              key={`r${String(index)}`}
-              intent={move.accept ? "primary" : "default"}
-              data-action={move.accept ? "accept" : "decline"}
-              onClick={() => {
-                onAction(move);
-              }}
-            >
-              {move.accept ? "Accept" : "Decline"}
-            </Button>
-          );
-        }
-        if (move.t === "confirmTrade") {
-          return (
-            <Button
-              key={`c${String(index)}`}
-              intent="primary"
-              data-action="confirm-trade"
-              onClick={() => {
-                onAction(move);
-              }}
-            >
-              Trade with {players[move.with]?.name}
-            </Button>
-          );
-        }
-        if (move.t === "cancelTrade") {
-          return (
-            <Button
-              key={`x${String(index)}`}
-              intent="ghost"
-              data-action="withdraw"
-              onClick={() => {
-                onAction(move);
-              }}
-            >
-              Withdraw offer
-            </Button>
-          );
-        }
-        return null;
-      })}
-    </div>
+  return view.phase.offer.from === view.you ? (
+    <OfferStandings view={view} onAction={onAction} />
+  ) : (
+    <OfferResponse view={view} onAction={onAction} />
   );
 }
 
@@ -731,21 +704,6 @@ function Disclosure({
       </summary>
       <div className="border-t border-gold/10 p-1.5">{children}</div>
     </details>
-  );
-}
-
-function Summary({ counts }: { readonly counts: ResourceCounts }): React.JSX.Element {
-  const parts = RESOURCE_KINDS.filter((k) => counts[k] > 0);
-  if (parts.length === 0) return <span>nothing</span>;
-  return (
-    <span className="inline-flex flex-wrap items-center gap-1">
-      {parts.map((kind) => (
-        <span key={kind} className="inline-flex items-center gap-0.5 font-num tabular-nums">
-          {counts[kind]}
-          <ResourceChip kind={kind} className="h-4 w-4" />
-        </span>
-      ))}
-    </span>
   );
 }
 

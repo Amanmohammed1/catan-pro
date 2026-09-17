@@ -161,6 +161,13 @@ export function drive(el: HTMLElement): boolean {
     if (take("withdraw")) return true;
   }
 
+  if (here === "specialBuild") {
+    // A 5–6 player building window: build if it is worth it, then hand on.
+    if (tryBuild("build-city")) return true;
+    if (tryBuild("build-settlement")) return true;
+    if (take("pass-special-build")) return true;
+  }
+
   if (here === "main") {
     if (tryBuild("build-city")) return true;
     if (tryBuild("build-settlement")) return true;

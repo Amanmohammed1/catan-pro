@@ -114,6 +114,11 @@ describe("classic board content", () => {
   });
 
   it("places exactly the intended token multiset", () => {
+    // The classic board lays the lettered A-R tokens in their printed order,
+    // so the sequence is the multiset. (The 5-6 board draws from a bag.)
+    expect(scenario.numbers.mode).toBe("path");
+    if (scenario.numbers.mode !== "path") return;
+
     const placed = Object.values(board.tiles)
       .map((t) => t.number)
       .filter((n): n is number => n !== null)

@@ -112,6 +112,13 @@ export type GameEvent =
       readonly accept: boolean;
     }
   | {
+      readonly e: "tradeCountered";
+      readonly player: PlayerId;
+      /** From the counter-offering player's point of view. */
+      readonly give: ResourceCounts;
+      readonly receive: ResourceCounts;
+    }
+  | {
       readonly e: "tradeCompleted";
       readonly from: PlayerId;
       readonly to: PlayerId;
@@ -147,6 +154,12 @@ export type GameEvent =
       readonly player: PlayerId;
       readonly resources: ResourceCounts;
     }
+  | {
+      readonly e: "specialBuildStarted";
+      /** Seats offered a window, in the order they get one. */
+      readonly players: readonly PlayerId[];
+    }
+  | { readonly e: "specialBuildPassed"; readonly player: PlayerId }
   | { readonly e: "gameEnded"; readonly winner: PlayerId; readonly points: number };
 
 export type EventKind = GameEvent["e"];

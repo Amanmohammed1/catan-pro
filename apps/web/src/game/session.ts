@@ -31,6 +31,11 @@ export interface GameSession {
   readonly deadline?: number | null;
   readonly onChat?: ((text: string) => void) | undefined;
   readonly chat?: readonly ChatLine[] | undefined;
+  /**
+   * Play the same people again on a new board. Online this is the host's to
+   * offer; hot-seat, anyone at the screen can start another.
+   */
+  readonly onRematch?: (() => void) | undefined;
 }
 
 export function seatColors(view: WireView): string[] {
@@ -105,6 +110,8 @@ export function describePrompt(view: WireView, you: PlayerId): string {
       return "Choose someone to rob";
     case "main":
       return "Trade and build";
+    case "specialBuild":
+      return "Special building — build or buy";
     case "roadBuilding":
       return "Place your free roads";
     case "tradeOffer":

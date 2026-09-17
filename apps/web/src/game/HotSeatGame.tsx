@@ -39,6 +39,11 @@ export function HotSeatGame({
       hotSeat: true,
       dispatch: game.dispatch,
       dismissError: game.dismissError,
+      // A new board for the same people. The seed moves on, so "play again"
+      // does not deal the same island twice.
+      onRematch: () => {
+        game.reset(`${seed}-${String(Date.now())}`, players);
+      },
     };
   }, [
     game.state,
@@ -47,6 +52,9 @@ export function HotSeatGame({
     game.activePlayer,
     game.dispatch,
     game.dismissError,
+    game.reset,
+    seed,
+    players,
   ]);
 
   return <GameScreen session={session} />;

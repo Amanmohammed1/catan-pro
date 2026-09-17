@@ -15,6 +15,7 @@ import {
   type TimerState,
 } from "@hexport/protocol";
 import type { Action, GameEvent, PlayerId, Scenario } from "@hexport/engine";
+import { botName, chooseMove } from "@hexport/bots";
 import { Match } from "./match.js";
 import { commitToSeed, generateSeed } from "./fairness.js";
 
@@ -30,6 +31,11 @@ export interface Seat {
   readonly token: string;
   connection: Connection | null;
   ready: boolean;
+  /**
+   * A seat the server plays itself. It has no socket, is always ready, and
+   * takes its turn from the same legal-move list a player would be sent.
+   */
+  readonly bot: boolean;
 }
 
 export interface RoomOptions {
@@ -39,6 +45,8 @@ export interface RoomOptions {
   readonly matchId: string;
   /** Milliseconds a player has to act before auto-pass. 0 disables. */
   readonly turnTimeoutMs?: number;
+  /** Milliseconds between a bot's moves, so a table can follow what happened. */
+  readonly botPaceMs?: number;
   readonly now?: () => number;
   readonly onCommand?: (
     actor: PlayerId,
@@ -60,16 +68,24 @@ export function generateRoomCode(): string {
 
 export class Room {
   public readonly code: string;
-  public readonly matchId: string;
   public readonly scenario: Scenario;
   public readonly maxPlayers: number;
-  public readonly seed: string;
-  public readonly seedCommitment: string;
+
+  /**
+   * A rematch is a new match in the same room: same people, same seats, a new
+   * board and a new seed — so these three change while the room does not.
+   */
+  public matchId: string;
+  public seed: string;
+  public seedCommitment: string;
 
   private readonly seats: Seat[] = [];
   private readonly chatLog: ChatLine[] = [];
   private readonly now: () => number;
   private readonly turnTimeoutMs: number;
+  private readonly botPaceMs: number;
+  /** Earliest moment each bot seat may move again. */
+  private readonly botNextMoveAt = new Map<PlayerId, number>();
   private readonly onCommand: RoomOptions["onCommand"];
   private readonly onFinished: RoomOptions["onFinished"];
 
@@ -85,6 +101,7 @@ export class Room {
     this.maxPlayers = Math.min(options.maxPlayers, options.scenario.players.max);
     this.now = options.now ?? (() => Date.now());
     this.turnTimeoutMs = options.turnTimeoutMs ?? 0;
+    this.botPaceMs = options.botPaceMs ?? 700;
     this.onCommand = options.onCommand;
     this.onFinished = options.onFinished;
     this.seed = generateSeed();
@@ -129,9 +146,36 @@ export class Room {
       token: randomBytes(18).toString("base64url"),
       connection: null,
       ready: false,
+      bot: false,
     };
     this.seats.push(seat);
     if (this.hostPlayer === null) this.hostPlayer = seat.player;
+
+    return { ok: true, seat };
+  }
+
+  /**
+   * Seat a bot. Before the game starts only, and never as host — a room with
+   * nobody in charge could not be started or ended by anyone.
+   */
+  public addBot(): { ok: true; seat: Seat } | { ok: false; reason: string } {
+    if (this.match !== null) {
+      return { ok: false, reason: "That game has already started." };
+    }
+    if (this.seats.length >= this.maxPlayers) {
+      return { ok: false, reason: "That room is full." };
+    }
+
+    const seat: Seat = {
+      player: this.seats.length,
+      nickname: this.uniqueNickname(botName(this.seats.filter((s) => s.bot).length)),
+      token: randomBytes(18).toString("base64url"),
+      connection: null,
+      // A bot never keeps a table waiting.
+      ready: true,
+      bot: true,
+    };
+    this.seats.push(seat);
 
     return { ok: true, seat };
   }
@@ -219,6 +263,27 @@ export class Room {
     return { ok: true };
   }
 
+  /**
+   * Play again: the same people in the same seats, on a new board.
+   *
+   * Only once the game is decided — a rematch mid-game would be a way for a
+   * losing host to wipe the board. The seed is new, and so is the commitment
+   * published with it, because the old seed has already been revealed.
+   */
+  public rematch(): { ok: true } | { ok: false; reason: string } {
+    const match = this.match;
+    if (match === null) return { ok: false, reason: "The game has not started." };
+    if (!match.isOver) return { ok: false, reason: "That game is still going." };
+
+    this.match = null;
+    this.matchId = `${this.code}-${String(this.now())}`;
+    this.seed = generateSeed();
+    this.seedCommitment = commitToSeed(this.seed);
+    for (const seat of this.seats) seat.ready = true;
+
+    return this.start();
+  }
+
   /** Restore an in-progress match, e.g. after a server restart. */
   public restore(
     match: Match,
@@ -232,6 +297,9 @@ export class Room {
         token: info.token,
         connection: null,
         ready: true,
+        // A restored match has no record of which seats were bots; they come
+        // back as people, and the turn timer keeps the game moving.
+        bot: false,
       });
     });
     this.hostPlayer = this.seats.length > 0 ? 0 : null;
@@ -325,6 +393,55 @@ export class Room {
     return played;
   }
 
+  // ---- bots ---------------------------------------------------------------
+
+  public get hasBots(): boolean {
+    return this.seats.some((seat) => seat.bot);
+  }
+
+  /**
+   * Play for any bot seat the game is waiting on.
+   *
+   * A bot is handed exactly what a player would be — the legal moves for its
+   * own seat and its own redacted view — so it can do nothing a player could
+   * not, and sees nothing a player could not. Paced, because a table that
+   * cannot see what the bots did might as well be playing alone.
+   *
+   * Returns what it played, so the caller can tell everyone.
+   */
+  public tickBots(): { actor: PlayerId; events: readonly GameEvent[] }[] {
+    const played: { actor: PlayerId; events: readonly GameEvent[] }[] = [];
+    const match = this.match;
+    if (match === null || match.isOver || !this.hasBots) return played;
+
+    // Bounded: one bot's move can unblock another, but never loop forever.
+    for (let guard = 0; guard < 12; guard++) {
+      if (match.isOver) break;
+
+      const actor = match
+        .waitingOn()
+        .find((player) => this.seatFor(player)?.bot === true);
+      if (actor === undefined) break;
+
+      const now = this.now();
+      if (now < (this.botNextMoveAt.get(actor) ?? 0)) break;
+
+      const move = chooseMove({
+        phase: match.viewFor(actor).phase,
+        legalMoves: match.legalFor(actor),
+      });
+      if (move === null) break;
+
+      const result = this.command(actor, move);
+      if (!result.ok) break;
+
+      played.push({ actor, events: result.events });
+      this.botNextMoveAt.set(actor, now + this.botPaceMs);
+    }
+
+    return played;
+  }
+
   // ---- chat --------------------------------------------------------------
 
   public addChat(line: ChatLine): void {
@@ -345,6 +462,7 @@ export class Room {
       connected: seat.connection !== null,
       ready: seat.ready,
       isHost: this.hostPlayer === seat.player,
+      isBot: seat.bot,
     }));
 
     return {

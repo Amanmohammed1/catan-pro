@@ -45,10 +45,17 @@ import { shuffle, type RngState } from "../rng/sfc32.js";
 const RED_NUMBERS: readonly number[] = [6, 8];
 
 /**
- * How many terrain reshuffles to try before giving up on the red-number
- * constraint. Deterministic: attempt N always uses the same state for a seed.
+ * How many reshuffles to try before giving up on the red-number constraint.
+ * Deterministic: attempt N always uses the same state for a seed.
+ *
+ * Generous, because the difficulty varies enormously with the board. The
+ * classic island clears the constraint about two attempts in five; the 5–6
+ * board, with six red tokens drawn from a bag onto thirty denser hexes, clears
+ * it about one in twenty-five — at 200 attempts roughly one game in two
+ * thousand failed to lay a board at all. Attempts are cheap; a board that is
+ * genuinely infeasible still fails loudly rather than shipping broken.
  */
-const MAX_LAYOUT_ATTEMPTS = 200;
+const MAX_LAYOUT_ATTEMPTS = 2000;
 
 export interface BuildBoardResult {
   readonly board: BoardGraph;
@@ -146,10 +153,32 @@ function assignTerrain(
 function assignNumbers(
   scenario: Scenario,
   terrain: Map<string, Terrain>,
-): Map<string, number> {
+  rng: RngState,
+): readonly [Map<string, number>, RngState] {
   const byCoord = new Map<string, ScenarioCell>();
   for (const cell of scenario.cells) {
     byCoord.set(axialKey(cell.coord), cell);
+  }
+
+  // A `bag` scenario declares the tokens in the box; they are shuffled with the
+  // game's own generator, so the same seed always lays the same board.
+  let current = rng;
+  let sequence: readonly number[];
+  if (scenario.numbers.mode === "bag") {
+    const drawn: number[] = [];
+    for (const entry of scenario.numbers.tokens) {
+      if (!Number.isInteger(entry.count) || entry.count < 0) {
+        throw new ScenarioError(
+          `Number bag entry ${String(entry.value)} has a bad count.`,
+        );
+      }
+      for (let i = 0; i < entry.count; i++) drawn.push(entry.value);
+    }
+    const [shuffled, next] = shuffle(current, drawn);
+    sequence = shuffled;
+    current = next;
+  } else {
+    sequence = scenario.numbers.sequence;
   }
 
   const numbers = new Map<string, number>();
@@ -175,23 +204,23 @@ function assignNumbers(
       continue;
     }
 
-    const token = scenario.numbers.sequence[tokenIndex];
+    const token = sequence[tokenIndex];
     if (token === undefined) {
       throw new ScenarioError(
-        `Number sequence has ${String(scenario.numbers.sequence.length)} tokens but the path needs more.`,
+        `Number sequence has ${String(sequence.length)} tokens but the path needs more.`,
       );
     }
     numbers.set(key, token);
     tokenIndex++;
   }
 
-  if (tokenIndex !== scenario.numbers.sequence.length) {
+  if (tokenIndex !== sequence.length) {
     throw new ScenarioError(
-      `Number sequence has ${String(scenario.numbers.sequence.length)} tokens but only ${String(tokenIndex)} were placed.`,
+      `Number sequence has ${String(sequence.length)} tokens but only ${String(tokenIndex)} were placed.`,
     );
   }
 
-  return numbers;
+  return [numbers, current] as const;
 }
 
 /** True when two tiles carrying red numbers share an edge. */
@@ -264,7 +293,12 @@ export function buildBoardGraph(scenario: Scenario, rng: RngState): BuildBoardRe
   for (let attempt = 0; attempt < MAX_LAYOUT_ATTEMPTS; attempt++) {
     const [candidateTerrain, next] = assignTerrain(scenario, current);
     current = next;
-    const candidateNumbers = assignNumbers(scenario, candidateTerrain);
+    const [candidateNumbers, afterNumbers] = assignNumbers(
+      scenario,
+      candidateTerrain,
+      current,
+    );
+    current = afterNumbers;
 
     if (!enforceRed || !violatesRedNumberRule(scenario, candidateNumbers)) {
       terrain = candidateTerrain;

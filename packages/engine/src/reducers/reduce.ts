@@ -25,6 +25,7 @@ import {
   canPlaceSettlement,
 } from "../queries/placement.js";
 import { canPlayDevCard, discardCount } from "../queries/legalMoves.js";
+import { resolveModules, turnHandoff } from "../modules/index.js";
 import { nextInt } from "../rng/sfc32.js";
 import {
   applyProduction,
@@ -180,6 +181,29 @@ function enterSteal(
 /** Return to the phase the robber interrupted. */
 function resumeAfterRobber(state: GameState, returnTo: "roll" | "main"): Phase {
   return returnTo === "roll" ? { k: "roll" } : { k: "main" };
+}
+
+/**
+ * Why this player may not build or buy right now, or null if they may.
+ *
+ * Two ways in: it is your turn and you are past the roll, or you hold the open
+ * Special Building window of a 5–6 player game (ADR 0006). Trading and playing
+ * development cards check the phase themselves and so stay shut out of a
+ * window, which is the point of it.
+ */
+function whyNotBuilding(
+  state: GameState,
+  player: PlayerId,
+  verb: "build" | "buy",
+): string | null {
+  const phase = state.phase;
+  if (phase.k === "main") {
+    return state.currentPlayer === player ? null : "Not your turn.";
+  }
+  if (phase.k === "specialBuild") {
+    return phase.queue[0] === player ? null : "Not your building window.";
+  }
+  return `You cannot ${verb} right now.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -510,11 +534,13 @@ export function reduce(state: GameState, action: Action): ReduceResult {
     // ---- building, p.4-5 --------------------------------------------------
     case "buildRoad": {
       const isFree = phase.k === "roadBuilding";
-      if (phase.k !== "main" && !isFree) {
-        return reject(action, "You cannot build right now.");
-      }
-      if (state.currentPlayer !== action.player) {
-        return reject(action, "Not your turn.");
+      if (isFree) {
+        if (state.currentPlayer !== action.player) {
+          return reject(action, "Not your turn.");
+        }
+      } else {
+        const refusal = whyNotBuilding(state, action.player, "build");
+        if (refusal !== null) return reject(action, refusal);
       }
       if (!canPlaceRoad(state, action.player, action.edge, { setup: false })) {
         return reject(action, "Illegal road placement.");
@@ -562,10 +588,8 @@ export function reduce(state: GameState, action: Action): ReduceResult {
     }
 
     case "buildSettlement": {
-      if (phase.k !== "main") return reject(action, "You cannot build right now.");
-      if (state.currentPlayer !== action.player) {
-        return reject(action, "Not your turn.");
-      }
+      const refusal = whyNotBuilding(state, action.player, "build");
+      if (refusal !== null) return reject(action, refusal);
       if (!canPlaceSettlement(state, action.player, action.node, { setup: false })) {
         return reject(action, "Illegal settlement placement.");
       }
@@ -602,10 +626,8 @@ export function reduce(state: GameState, action: Action): ReduceResult {
     }
 
     case "buildCity": {
-      if (phase.k !== "main") return reject(action, "You cannot build right now.");
-      if (state.currentPlayer !== action.player) {
-        return reject(action, "Not your turn.");
-      }
+      const refusal = whyNotBuilding(state, action.player, "build");
+      if (refusal !== null) return reject(action, refusal);
       if (!canPlaceCity(state, action.player, action.node)) {
         return reject(action, "You can only upgrade your own settlement.");
       }
@@ -642,10 +664,8 @@ export function reduce(state: GameState, action: Action): ReduceResult {
     }
 
     case "buyDevCard": {
-      if (phase.k !== "main") return reject(action, "You cannot buy right now.");
-      if (state.currentPlayer !== action.player) {
-        return reject(action, "Not your turn.");
-      }
+      const refusal = whyNotBuilding(state, action.player, "buy");
+      if (refusal !== null) return reject(action, refusal);
       if (state.devDeck.length === 0) {
         return reject(action, "The development card deck is empty.");
       }
@@ -952,6 +972,7 @@ export function reduce(state: GameState, action: Action): ReduceResult {
               receive: action.receive,
             },
             responses,
+            counters: {},
           },
         },
         events: [
@@ -993,21 +1014,82 @@ export function reduce(state: GameState, action: Action): ReduceResult {
       };
     }
 
+    /**
+     * Answer an offer with terms of your own (p.4: players haggle). Like
+     * `offerTrade` this is validated rather than enumerated — ADR 0003 — and a
+     * counter counts as that player's answer, so the offering player can
+     * confirm it exactly as they would an acceptance.
+     */
+    case "counterTrade": {
+      if (phase.k !== "tradeOffer") return reject(action, "No trade is open.");
+      if (action.player === phase.offer.from) {
+        return reject(action, "You cannot counter your own offer.");
+      }
+      if (phase.responses[action.player] === undefined) {
+        return reject(action, "You are not part of this trade.");
+      }
+      if (!isNonNegative(action.give) || !isNonNegative(action.receive)) {
+        return reject(action, "Trade amounts must not be negative.");
+      }
+      if (totalResources(action.give) === 0 || totalResources(action.receive) === 0) {
+        return reject(action, "A trade must have something on both sides.");
+      }
+      if (!canAfford(seat.resources, action.give)) {
+        return reject(action, "You do not hold what you are offering.");
+      }
+
+      return {
+        ok: true,
+        state: {
+          ...state,
+          phase: {
+            ...phase,
+            responses: { ...phase.responses, [action.player]: "counter" },
+            counters: {
+              ...phase.counters,
+              [action.player]: {
+                from: action.player,
+                give: action.give,
+                receive: action.receive,
+              },
+            },
+          },
+        },
+        events: [
+          {
+            e: "tradeCountered",
+            player: action.player,
+            give: action.give,
+            receive: action.receive,
+          },
+        ],
+      };
+    }
+
     case "confirmTrade": {
       if (phase.k !== "tradeOffer") return reject(action, "No trade is open.");
       if (action.player !== phase.offer.from) {
         return reject(action, "Only the offering player may confirm.");
       }
-      if (phase.responses[action.with] !== "accept") {
+      const answer = phase.responses[action.with];
+      if (answer !== "accept" && answer !== "counter") {
         return reject(action, "That player has not accepted.");
       }
 
+      // A counter is that player's own terms, stated from their side; flip it
+      // to read from the offering player's side and the swap below is the same.
+      const counter = phase.counters[action.with];
+      const terms =
+        answer === "counter" && counter !== undefined
+          ? { give: counter.receive, receive: counter.give }
+          : { give: phase.offer.give, receive: phase.offer.receive };
+
       const partner = seatOf(state, action.with);
       if (partner === undefined) return reject(action, "No such player.");
-      if (!canAfford(seat.resources, phase.offer.give)) {
+      if (!canAfford(seat.resources, terms.give)) {
         return reject(action, "You no longer hold what you offered.");
       }
-      if (!canAfford(partner.resources, phase.offer.receive)) {
+      if (!canAfford(partner.resources, terms.receive)) {
         return reject(action, "They no longer hold what they offered.");
       }
 
@@ -1018,8 +1100,8 @@ export function reduce(state: GameState, action: Action): ReduceResult {
             return {
               ...s,
               resources: addResources(
-                subtractResources(s.resources, phase.offer.give),
-                phase.offer.receive,
+                subtractResources(s.resources, terms.give),
+                terms.receive,
               ),
             };
           }
@@ -1027,8 +1109,8 @@ export function reduce(state: GameState, action: Action): ReduceResult {
             return {
               ...s,
               resources: addResources(
-                subtractResources(s.resources, phase.offer.receive),
-                phase.offer.give,
+                subtractResources(s.resources, terms.receive),
+                terms.give,
               ),
             };
           }
@@ -1093,11 +1175,62 @@ export function reduce(state: GameState, action: Action): ReduceResult {
         return reject(action, "Not your turn.");
       }
 
+      // A module may interpose a phase between turns. The 5–6 extension puts
+      // the Special Building Phase here; the base game puts nothing.
+      const nextPlayer = (state.currentPlayer + 1) % state.players.length;
+      const handoff = turnHandoff(
+        resolveModules(state.config.modules),
+        state,
+        nextPlayer,
+      );
+      if (handoff !== null) {
+        return {
+          ok: true,
+          state: { ...state, phase: handoff.phase },
+          events: handoff.events,
+        };
+      }
+
       const next = beginNextTurn(state);
       return {
         ok: true,
         state: next,
         events: [{ e: "turnStarted", player: next.currentPlayer, turn: next.turn }],
+      };
+    }
+
+    // ---- the 5–6 Special Building Phase, ADR 0006 --------------------------
+    case "passSpecialBuild": {
+      if (phase.k !== "specialBuild") {
+        return reject(action, "No building window is open.");
+      }
+      if (phase.queue[0] !== action.player) {
+        return reject(action, "Not your building window.");
+      }
+
+      const rest = phase.queue.slice(1);
+      const passed: GameEvent = { e: "specialBuildPassed", player: action.player };
+
+      if (rest.length > 0) {
+        return {
+          ok: true,
+          state: {
+            ...state,
+            phase: { k: "specialBuild", queue: rest, nextPlayer: phase.nextPlayer },
+          },
+          events: [passed],
+        };
+      }
+
+      // The last window closes; the next player's turn begins.
+      const resumed = beginNextTurn(state);
+      return {
+        ok: true,
+        state: resumed,
+        events: [
+          passed,
+          { e: "turnStarted", player: resumed.currentPlayer, turn: resumed.turn },
+        ],
       };
     }
 
