@@ -191,6 +191,7 @@ export {
 } from "./queries/placement.js";
 
 export {
+  canCounterTrade,
   canOfferTrade,
   canPlayDevCard,
   discardCount,

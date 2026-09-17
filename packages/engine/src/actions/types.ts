@@ -75,6 +75,17 @@ export type Action =
       readonly player: PlayerId;
       readonly accept: boolean;
     }
+  /**
+   * Answer an open offer with terms of your own. Amounts are from the
+   * counter-offering player's point of view: what they give, what they want.
+   * Validated rather than enumerated, like `offerTrade` — ADR 0003.
+   */
+  | {
+      readonly t: "counterTrade";
+      readonly player: PlayerId;
+      readonly give: ResourceCounts;
+      readonly receive: ResourceCounts;
+    }
   | {
       readonly t: "confirmTrade";
       readonly player: PlayerId;

@@ -112,6 +112,13 @@ export type GameEvent =
       readonly accept: boolean;
     }
   | {
+      readonly e: "tradeCountered";
+      readonly player: PlayerId;
+      /** From the counter-offering player's point of view. */
+      readonly give: ResourceCounts;
+      readonly receive: ResourceCounts;
+    }
+  | {
       readonly e: "tradeCompleted";
       readonly from: PlayerId;
       readonly to: PlayerId;

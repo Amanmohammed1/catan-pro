@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { reduce } from "./reduce.js";
-import { canOfferTrade, legalMoves } from "../queries/legalMoves.js";
+import { canCounterTrade, canOfferTrade, legalMoves } from "../queries/legalMoves.js";
 import { bestTradeRate } from "../state/helpers.js";
 import { victoryPoints } from "../queries/scores.js";
 import {
@@ -271,6 +271,136 @@ describe("domestic trade (p.4, p.7)", () => {
       state.bank.brick +
       state.bank.ore;
     expect(after).toBe(before);
+  });
+});
+
+describe("counter-offers (p.4)", () => {
+  /** Player 0 offers two brick for one ore; player 1 holds two ore. */
+  function opened(): GameState {
+    let state = giveResources(ready(3), 0, { brick: 2 });
+    state = giveResources(state, 1, { ore: 2 });
+    return apply(state, {
+      t: "offerTrade",
+      player: 0,
+      give: counts({ brick: 2 }),
+      receive: counts({ ore: 1 }),
+    });
+  }
+
+  const counter = counts({ ore: 2 });
+  const wanted = counts({ brick: 2 });
+
+  it("is open to a player the offer was made to", () => {
+    expect(canCounterTrade(opened(), 1)).toBe(true);
+  });
+
+  it("is not open to the player who made the offer", () => {
+    expect(canCounterTrade(opened(), 0)).toBe(false);
+  });
+
+  it("is not open when no offer is on the table", () => {
+    expect(canCounterTrade(giveResources(ready(3), 1, { ore: 2 }), 1)).toBe(false);
+  });
+
+  it("records the terms and counts as that player's answer", () => {
+    const state = apply(opened(), {
+      t: "counterTrade",
+      player: 1,
+      give: counter,
+      receive: wanted,
+    });
+
+    expect(state.phase.k).toBe("tradeOffer");
+    if (state.phase.k !== "tradeOffer") return;
+    expect(state.phase.responses[1]).toBe("counter");
+    expect(state.phase.counters[1]?.give).toEqual(counter);
+    expect(state.phase.counters[1]?.receive).toEqual(wanted);
+  });
+
+  it("is offered to the other player as a deal they can close", () => {
+    const state = apply(opened(), {
+      t: "counterTrade",
+      player: 1,
+      give: counter,
+      receive: wanted,
+    });
+    expect(
+      legalMoves(state, 0).some((m) => m.t === "confirmTrade" && m.with === 1),
+    ).toBe(true);
+  });
+
+  it("closes on the counter's terms, not the original offer's", () => {
+    let state = apply(opened(), {
+      t: "counterTrade",
+      player: 1,
+      give: counter,
+      receive: wanted,
+    });
+    state = apply(state, { t: "confirmTrade", player: 0, with: 1 });
+
+    // Player 0 asked for one ore and gets two: they took the counter.
+    expect(state.players[0]?.resources.ore).toBe(2);
+    expect(state.players[0]?.resources.brick).toBe(0);
+    expect(state.players[1]?.resources.brick).toBe(2);
+    expect(state.players[1]?.resources.ore).toBe(0);
+    expect(state.phase.k).toBe("main");
+  });
+
+  it("conserves resources across a countered trade", () => {
+    const before = opened();
+    let state = apply(before, {
+      t: "counterTrade",
+      player: 1,
+      give: counter,
+      receive: wanted,
+    });
+    state = apply(state, { t: "confirmTrade", player: 0, with: 1 });
+
+    for (const kind of ["brick", "ore"] as const) {
+      const total = (s: GameState): number =>
+        s.bank[kind] + s.players.reduce((sum, p) => sum + p.resources[kind], 0);
+      expect(total(state)).toBe(total(before));
+    }
+  });
+
+  it("refuses a counter from the player who made the offer", () => {
+    const result = reduce(opened(), {
+      t: "counterTrade",
+      player: 0,
+      give: counts({ brick: 1 }),
+      receive: counts({ ore: 1 }),
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("refuses a counter of cards the player does not hold", () => {
+    const result = reduce(opened(), {
+      t: "counterTrade",
+      player: 1,
+      give: counts({ wool: 3 }),
+      receive: wanted,
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("refuses an empty side, so a counter cannot be a gift either", () => {
+    const result = reduce(opened(), {
+      t: "counterTrade",
+      player: 1,
+      give: counter,
+      receive: emptyResources(),
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("refuses a counter when no offer is open", () => {
+    const result = reduce(giveResources(ready(3), 1, { ore: 2 }), {
+      t: "counterTrade",
+      player: 1,
+      give: counter,
+      receive: wanted,
+    });
+    expect(result.ok).toBe(false);
   });
 });
 

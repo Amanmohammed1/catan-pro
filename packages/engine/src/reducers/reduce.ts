@@ -972,6 +972,7 @@ export function reduce(state: GameState, action: Action): ReduceResult {
               receive: action.receive,
             },
             responses,
+            counters: {},
           },
         },
         events: [
@@ -1013,21 +1014,82 @@ export function reduce(state: GameState, action: Action): ReduceResult {
       };
     }
 
+    /**
+     * Answer an offer with terms of your own (p.4: players haggle). Like
+     * `offerTrade` this is validated rather than enumerated — ADR 0003 — and a
+     * counter counts as that player's answer, so the offering player can
+     * confirm it exactly as they would an acceptance.
+     */
+    case "counterTrade": {
+      if (phase.k !== "tradeOffer") return reject(action, "No trade is open.");
+      if (action.player === phase.offer.from) {
+        return reject(action, "You cannot counter your own offer.");
+      }
+      if (phase.responses[action.player] === undefined) {
+        return reject(action, "You are not part of this trade.");
+      }
+      if (!isNonNegative(action.give) || !isNonNegative(action.receive)) {
+        return reject(action, "Trade amounts must not be negative.");
+      }
+      if (totalResources(action.give) === 0 || totalResources(action.receive) === 0) {
+        return reject(action, "A trade must have something on both sides.");
+      }
+      if (!canAfford(seat.resources, action.give)) {
+        return reject(action, "You do not hold what you are offering.");
+      }
+
+      return {
+        ok: true,
+        state: {
+          ...state,
+          phase: {
+            ...phase,
+            responses: { ...phase.responses, [action.player]: "counter" },
+            counters: {
+              ...phase.counters,
+              [action.player]: {
+                from: action.player,
+                give: action.give,
+                receive: action.receive,
+              },
+            },
+          },
+        },
+        events: [
+          {
+            e: "tradeCountered",
+            player: action.player,
+            give: action.give,
+            receive: action.receive,
+          },
+        ],
+      };
+    }
+
     case "confirmTrade": {
       if (phase.k !== "tradeOffer") return reject(action, "No trade is open.");
       if (action.player !== phase.offer.from) {
         return reject(action, "Only the offering player may confirm.");
       }
-      if (phase.responses[action.with] !== "accept") {
+      const answer = phase.responses[action.with];
+      if (answer !== "accept" && answer !== "counter") {
         return reject(action, "That player has not accepted.");
       }
 
+      // A counter is that player's own terms, stated from their side; flip it
+      // to read from the offering player's side and the swap below is the same.
+      const counter = phase.counters[action.with];
+      const terms =
+        answer === "counter" && counter !== undefined
+          ? { give: counter.receive, receive: counter.give }
+          : { give: phase.offer.give, receive: phase.offer.receive };
+
       const partner = seatOf(state, action.with);
       if (partner === undefined) return reject(action, "No such player.");
-      if (!canAfford(seat.resources, phase.offer.give)) {
+      if (!canAfford(seat.resources, terms.give)) {
         return reject(action, "You no longer hold what you offered.");
       }
-      if (!canAfford(partner.resources, phase.offer.receive)) {
+      if (!canAfford(partner.resources, terms.receive)) {
         return reject(action, "They no longer hold what they offered.");
       }
 
@@ -1038,8 +1100,8 @@ export function reduce(state: GameState, action: Action): ReduceResult {
             return {
               ...s,
               resources: addResources(
-                subtractResources(s.resources, phase.offer.give),
-                phase.offer.receive,
+                subtractResources(s.resources, terms.give),
+                terms.receive,
               ),
             };
           }
@@ -1047,8 +1109,8 @@ export function reduce(state: GameState, action: Action): ReduceResult {
             return {
               ...s,
               resources: addResources(
-                subtractResources(s.resources, phase.offer.receive),
-                phase.offer.give,
+                subtractResources(s.resources, terms.receive),
+                terms.give,
               ),
             };
           }

@@ -79,6 +79,8 @@ export function describeEvent(event: GameEvent, names: readonly string[]): strin
       return `${name(event.player)} offered a trade`;
     case "tradeResponded":
       return `${name(event.player)} ${event.accept ? "accepted" : "declined"}`;
+    case "tradeCountered":
+      return `${name(event.player)} countered with different terms`;
     case "tradeCompleted":
       return `${name(event.from)} traded with ${name(event.to)}`;
     case "tradeCancelled":
