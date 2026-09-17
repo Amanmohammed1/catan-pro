@@ -19,13 +19,17 @@ import type { Action } from "@hexport/engine";
 let server: GameServer | null = null;
 const clients: TestClient[] = [];
 
-async function startServer(options?: { turnTimeoutMs?: number }): Promise<string> {
+async function startServer(options?: {
+  turnTimeoutMs?: number;
+  botPaceMs?: number;
+}): Promise<string> {
   server = new GameServer({
     port: 0,
     host: "127.0.0.1",
     ...(options?.turnTimeoutMs === undefined
       ? {}
       : { turnTimeoutMs: options.turnTimeoutMs }),
+    ...(options?.botPaceMs === undefined ? {} : { botPaceMs: options.botPaceMs }),
   });
   await server.listen();
   return `ws://127.0.0.1:${String(server.port)}`;
@@ -598,6 +602,121 @@ describe("chat and host controls", () => {
     await notHost.until(() => notHost.errors.length > 0, "error");
     expect(notHost.errors.at(-1)?.code).toBe("not-host");
   });
+});
+
+/**
+ * Bots the server plays itself.
+ *
+ * A bot seat has no socket: it is handed the same legal-move list a player
+ * would be sent, for its own seat, and plays one of those. That is the whole
+ * safety argument — it cannot do anything a player could not, and it is given
+ * nothing a player would not see.
+ */
+describe("bots in a room", () => {
+  it("seats the bots the room was created with", async () => {
+    const url = await startServer();
+    const host = await newClient(url);
+    host.hello();
+    host.send({ t: "createRoom", nickname: "Host", playerCount: 4, bots: 3 });
+    await host.until(() => (host.room?.seats.length ?? 0) === 4, "seats filled");
+
+    const seats = host.room?.seats ?? [];
+    expect(seats.filter((seat) => seat.isBot)).toHaveLength(3);
+    // A bot never keeps a table waiting, and never holds the room.
+    expect(seats.filter((seat) => seat.isBot).every((seat) => seat.ready)).toBe(true);
+    expect(seats[0]?.isHost).toBe(true);
+    expect(seats[0]?.isBot).toBe(false);
+  });
+
+  it("lets the host add and remove a bot while the room waits", async () => {
+    const url = await startServer();
+    const host = await newClient(url);
+    host.hello();
+    host.send({ t: "createRoom", nickname: "Host", playerCount: 4 });
+    await host.until(() => host.room !== null, "room");
+
+    host.send({ t: "addBot" });
+    await host.until(() => (host.room?.seats.length ?? 0) === 2, "bot added");
+    expect(host.room?.seats[1]?.isBot).toBe(true);
+
+    host.send({ t: "removeBot", player: 1 });
+    await host.until(() => (host.room?.seats.length ?? 0) === 1, "bot removed");
+  });
+
+  it("refuses a bot from a player who is not the host", async () => {
+    const { all } = await seatedGame(3);
+    const notHost = all[1] as TestClient;
+
+    notHost.send({ t: "addBot" });
+    await notHost.until(() => notHost.errors.length > 0, "error");
+    expect(notHost.errors.at(-1)?.code).toBe("not-host");
+  });
+
+  it("will not remove a person with removeBot", async () => {
+    const url = await startServer();
+    const host = await newClient(url);
+    host.hello();
+    host.send({ t: "createRoom", nickname: "Host", playerCount: 4 });
+    await host.until(() => host.room !== null, "room");
+
+    const guest = await newClient(url);
+    guest.hello();
+    guest.send({ t: "joinRoom", code: host.room?.code ?? "", nickname: "Guest" });
+    await guest.until(() => guest.room !== null, "joined");
+    await settle(40);
+
+    host.send({ t: "removeBot", player: 1 });
+    await host.until(() => host.errors.length > 0, "error");
+    expect(host.errors.at(-1)?.message).toMatch(/not a bot/);
+    expect(host.room?.seats).toHaveLength(2);
+  });
+
+  it("refuses another bot once the room is full", async () => {
+    const url = await startServer();
+    const host = await newClient(url);
+    host.hello();
+    host.send({ t: "createRoom", nickname: "Host", playerCount: 3, bots: 2 });
+    await host.until(() => (host.room?.seats.length ?? 0) === 3, "full");
+
+    host.send({ t: "addBot" });
+    await host.until(() => host.errors.length > 0, "error");
+    expect(host.errors.at(-1)?.message).toMatch(/full/);
+  });
+
+  it("plays its own turns once the game starts", async () => {
+    // No pacing in a test: bots move as fast as the tick.
+    const url = await startServer({ botPaceMs: 0 });
+    const host = await newClient(url);
+    host.hello();
+    host.send({ t: "createRoom", nickname: "Host", playerCount: 3, bots: 2 });
+    await host.until(() => (host.room?.seats.length ?? 0) === 3, "seated");
+
+    host.send({ t: "setReady", ready: true });
+    host.send({ t: "startGame" });
+    await host.until(() => host.view !== null, "game started");
+
+    // Setup opens with the host; place a settlement and its road, then the two
+    // bots should take their own placements with nobody touching them.
+    for (let i = 0; i < 2; i += 1) {
+      const move = host.legalMoves[0];
+      if (move === undefined) break;
+      host.play(move);
+      await host.nextFrame(2000);
+    }
+
+    for (let i = 0; i < 60; i += 1) {
+      server?.runTimers();
+      await settle(10);
+      if (host.log.some((e) => e.e === "buildingPlacedInSetup" && e.player !== 0)) {
+        break;
+      }
+    }
+
+    const botPlacements = host.log.filter(
+      (e) => e.e === "buildingPlacedInSetup" && e.player !== 0,
+    );
+    expect(botPlacements.length).toBeGreaterThan(0);
+  }, 30000);
 });
 
 /**

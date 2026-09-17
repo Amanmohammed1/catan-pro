@@ -31,8 +31,10 @@ export interface ServerOptions {
   readonly host?: string;
   readonly store?: MatchStore;
   readonly turnTimeoutMs?: number;
-  /** Tick interval for the turn timer. */
+  /** Tick interval for the turn timer, and for bot seats. */
   readonly timerIntervalMs?: number;
+  /** Milliseconds between a bot's moves. 0 makes them play as fast as ticks. */
+  readonly botPaceMs?: number;
   readonly logger?: boolean;
 }
 
@@ -63,6 +65,7 @@ export class GameServer {
   private readonly turnTimeoutMs: number;
   private timerHandle: ReturnType<typeof setInterval> | null = null;
   private readonly timerIntervalMs: number;
+  private readonly botPaceMs: number;
 
   public constructor(private readonly options: ServerOptions = {}) {
     this.app = Fastify({ logger: options.logger ?? false });
@@ -70,6 +73,7 @@ export class GameServer {
     this.store = options.store ?? new MemoryMatchStore();
     this.turnTimeoutMs = options.turnTimeoutMs ?? 0;
     this.timerIntervalMs = options.timerIntervalMs ?? 1000;
+    this.botPaceMs = options.botPaceMs ?? 700;
 
     this.app.get("/health", () => ({
       ok: true,
@@ -115,12 +119,12 @@ export class GameServer {
       port: this.options.port ?? 8787,
       host: this.options.host ?? "127.0.0.1",
     });
-    if (this.turnTimeoutMs > 0) {
-      this.timerHandle = setInterval(() => {
-        this.runTimers();
-      }, this.timerIntervalMs);
-      this.timerHandle.unref?.();
-    }
+    // Always ticking: the turn timer is optional, but bot seats are not driven
+    // by anything else, and a room full of bots with no tick never moves.
+    this.timerHandle = setInterval(() => {
+      this.runTimers();
+    }, this.timerIntervalMs);
+    this.timerHandle.unref?.();
     return address;
   }
 
@@ -241,6 +245,12 @@ export class GameServer {
       case "rematch":
         this.onRematch(session);
         return;
+      case "addBot":
+        this.onAddBot(session);
+        return;
+      case "removeBot":
+        this.onRemoveBot(session, message.player);
+        return;
       case "kick":
         this.onKick(session, message.player);
         return;
@@ -324,6 +334,7 @@ export class GameServer {
       scenario,
       maxPlayers: message.playerCount ?? scenario.players.max,
       turnTimeoutMs: this.turnTimeoutMs,
+      botPaceMs: this.botPaceMs,
       onCommand: (actor, action, events, seq) => {
         void this.store.appendCommand({
           matchId,
@@ -341,6 +352,17 @@ export class GameServer {
 
     this.rooms.set(code, room);
     this.seatInto(session, room, message.nickname);
+
+    // Bots asked for at creation fill the seats behind the host, so a room is
+    // playable the moment it exists rather than only once friends arrive.
+    let seated = 0;
+    for (let i = 0; i < (message.bots ?? 0); i += 1) {
+      if (!room.addBot().ok) break;
+      seated += 1;
+    }
+    if (seated > 0) {
+      room.broadcast((other) => ({ t: "room", room: room.view(other.player) }));
+    }
   }
 
   private onJoinRoom(
@@ -454,6 +476,57 @@ export class GameServer {
 
     this.broadcastUpdate(room, result.events);
     this.maybeRevealSeed(room);
+  }
+
+  /**
+   * Fill a seat with a bot the server plays itself.
+   *
+   * Host only, and only before the game starts — the seats are the table, and
+   * changing them mid-game would renumber everyone's command log.
+   */
+  private onAddBot(session: Session): void {
+    const { room, seat } = session;
+    if (room === null || seat === null) {
+      this.fail(session, "not-seated", "Join a room first.");
+      return;
+    }
+    if (!room.isHost(seat.player)) {
+      this.fail(session, "not-host", "Only the host can add bots.");
+      return;
+    }
+
+    const added = room.addBot();
+    if (!added.ok) {
+      this.fail(session, "bad-message", added.reason);
+      return;
+    }
+
+    room.broadcast((other) => ({ t: "room", room: room.view(other.player) }));
+  }
+
+  /** Free a bot's seat again. Host only, before the game starts. */
+  private onRemoveBot(session: Session, player: PlayerId): void {
+    const { room, seat } = session;
+    if (room === null || seat === null) {
+      this.fail(session, "not-seated", "Join a room first.");
+      return;
+    }
+    if (!room.isHost(seat.player)) {
+      this.fail(session, "not-host", "Only the host can remove bots.");
+      return;
+    }
+
+    const target = room.seatFor(player);
+    if (target === undefined || !target.bot) {
+      this.fail(session, "bad-message", "That seat is not a bot.");
+      return;
+    }
+    if (!room.removeSeat(player)) {
+      this.fail(session, "bad-message", "That game has already started.");
+      return;
+    }
+
+    room.broadcast((other) => ({ t: "room", room: room.view(other.player) }));
   }
 
   private onKick(session: Session, player: PlayerId): void {
@@ -631,9 +704,21 @@ export class GameServer {
 
   public runTimers(): void {
     for (const room of this.rooms.values()) {
-      const played = room.tickTimer();
-      if (played.length === 0) continue;
-      this.broadcastSnapshot(room);
+      const passed = room.tickTimer();
+      if (passed.length > 0) {
+        this.broadcastSnapshot(room);
+        this.maybeRevealSeed(room);
+      }
+
+      // Bots move on the same tick. Their moves go out as updates rather than
+      // snapshots, so they carry their events and the table sees the dice roll,
+      // the settlement landing and hears them, exactly as for a human's move.
+      const botMoves = room.tickBots();
+      if (botMoves.length === 0) continue;
+      this.broadcastUpdate(
+        room,
+        botMoves.flatMap((move) => move.events),
+      );
       this.maybeRevealSeed(room);
     }
   }

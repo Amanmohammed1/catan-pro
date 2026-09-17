@@ -1,0 +1,20 @@
+{
+  "name": "@hexport/bots",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "How a bot picks its move. Shared by the server's lobby bots and the headless harness.",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hexport/engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.2"
+  }
+}

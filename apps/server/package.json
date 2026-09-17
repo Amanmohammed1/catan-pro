@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@hexport/bots": "workspace:*",
     "@hexport/engine": "workspace:*",
     "@hexport/protocol": "workspace:*",
     "@hexport/scenarios": "workspace:*",

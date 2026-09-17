@@ -49,6 +49,8 @@ export const clientMessageSchema = z.discriminatedUnion("t", [
     nickname,
     scenarioId: z.string().min(1).max(64).optional(),
     playerCount: z.number().int().min(2).max(6).optional(),
+    /** Seats the server plays itself, filled as soon as the room exists. */
+    bots: z.number().int().min(0).max(5).optional(),
   }),
   z.object({ t: z.literal("joinRoom"), code: roomCode, nickname }),
   z.object({ t: z.literal("leaveRoom") }),
@@ -57,6 +59,9 @@ export const clientMessageSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("command"), action: actionSchema }),
   /** Host only. */
   z.object({ t: z.literal("kick"), player: z.number().int().min(0).max(5) }),
+  /** Host only, before the game starts: fill or free a seat with a bot. */
+  z.object({ t: z.literal("addBot") }),
+  z.object({ t: z.literal("removeBot"), player: z.number().int().min(0).max(5) }),
   z.object({ t: z.literal("chat"), text: z.string().trim().min(1).max(400) }),
   /** Host only, and only once the game is over: same seats, fresh board. */
   z.object({ t: z.literal("rematch") }),
@@ -75,6 +80,8 @@ export interface RoomSeat {
   readonly connected: boolean;
   readonly ready: boolean;
   readonly isHost: boolean;
+  /** A seat the server plays itself. Always ready, never connected. */
+  readonly isBot: boolean;
 }
 
 export interface RoomView {

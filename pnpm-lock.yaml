@@ -253,6 +253,9 @@ importers:
 
   apps/bot-runner:
     dependencies:
+      '@hexport/bots':
+        specifier: workspace:*
+        version: link:../../packages/bots
       '@hexport/engine':
         specifier: workspace:*
         version: link:../../packages/engine
@@ -269,6 +272,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@hexport/bots':
+        specifier: workspace:*
+        version: link:../../packages/bots
       '@hexport/engine':
         specifier: workspace:*
         version: link:../../packages/engine
@@ -387,6 +393,16 @@ importers:
         version: 8.21.3
 
   packages/assets: {}
+
+  packages/bots:
+    dependencies:
+      '@hexport/engine':
+        specifier: workspace:*
+        version: link:../engine
+    devDependencies:
+      '@types/node':
+        specifier: 22.20.2
+        version: 22.20.2
 
   packages/engine: {}
 

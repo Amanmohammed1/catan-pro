@@ -95,6 +95,7 @@ packages/engine/        PURE. no runtime dependencies, enforced three ways
   src/queries/          legalMoves, longestRoad, scores, placement, playerView
   src/reducers/         reduce, production, special cards
 
+packages/bots/          how a bot picks its move. shared by the server and the harness
 packages/protocol/      zod schemas for the wire. depends on engine for types only
 packages/scenarios/     board data as JSON + the zod schema that validates it
 apps/server/            Fastify + ws + optional Postgres
@@ -260,6 +261,23 @@ with the code in the other.
 - `?hotseat=1&players=6` — the larger island, with special building
 - `?debug=1` — the M0 geometry renderer with node and edge ids
 - `?fx=1` — force post-processing on, even on a software renderer
+
+**Bots to play against**
+
+Two ways, one brain (`packages/bots`), so they play the same either way:
+
+- **From the lobby.** Creating a room offers a bot count, and the host can add
+  or remove bots while the room waits. The server plays those seats itself, on
+  the same tick the turn timer runs on, from the same legal-move list a player
+  would be sent — a bot can do nothing a player could not, and sees nothing a
+  player could not.
+- **From a terminal.** `pnpm bots` opens a room, seats three bots, prints a
+  join link, and deals another board a few seconds after each win.
+
+```bash
+pnpm bots                       # 3 bots and a seat for you
+pnpm bots --players 6 --bots 5
+```
 
 **Checks**
 

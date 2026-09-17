@@ -12,6 +12,7 @@
     "bots": "tsx src/bots.ts"
   },
   "dependencies": {
+    "@hexport/bots": "workspace:*",
     "@hexport/engine": "workspace:*",
     "@hexport/protocol": "workspace:*",
     "@hexport/scenarios": "workspace:*"

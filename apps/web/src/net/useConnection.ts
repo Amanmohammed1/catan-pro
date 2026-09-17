@@ -227,8 +227,20 @@ export function useConnection(url: string, options: ConnectionOptions = {}) {
   }, [url, onMessage, tokenKey]);
 
   const createRoom = useCallback(
-    (nickname: string, playerCount: number) => {
-      send({ t: "createRoom", nickname, playerCount });
+    (nickname: string, playerCount: number, bots = 0) => {
+      send({ t: "createRoom", nickname, playerCount, bots });
+    },
+    [send],
+  );
+
+  /** Host only, before the game starts. */
+  const addBot = useCallback(() => {
+    send({ t: "addBot" });
+  }, [send]);
+
+  const removeBot = useCallback(
+    (player: number) => {
+      send({ t: "removeBot", player });
     },
     [send],
   );
@@ -306,6 +318,8 @@ export function useConnection(url: string, options: ConnectionOptions = {}) {
     startGame,
     command,
     kick,
+    addBot,
+    removeBot,
     sendChat,
     rematch,
     leave,

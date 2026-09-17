@@ -101,8 +101,12 @@ function JoinForm({
     }
   });
   const [seats, setSeats] = useState(4);
+  const [bots, setBots] = useState(0);
 
   const named = nickname.trim() !== "";
+  // You take one seat; the rest can be bots, or left open for people.
+  const maxBots = seats - 1;
+  const wanted = Math.min(bots, maxBots);
 
   return (
     <div className="panel p-4">
@@ -151,13 +155,50 @@ function JoinForm({
         </div>
       </Field>
 
+      <Field label="Bots" htmlFor="bots">
+        <div className="flex gap-1.5" role="radiogroup" aria-labelledby="bots-label">
+          {Array.from({ length: seats }, (_, n) => n).map((n) => (
+            <button
+              key={n}
+              type="button"
+              role="radio"
+              aria-checked={wanted === n}
+              data-bots={n}
+              title={
+                n === 0
+                  ? "People only — share the code and wait for them"
+                  : `${String(n)} seat${n === 1 ? "" : "s"} played by the server`
+              }
+              onClick={() => {
+                setBots(n);
+              }}
+              className={[
+                "flex-1 rounded-[11px] border py-2 font-num text-sm font-semibold transition-colors",
+                wanted === n
+                  ? "border-gold/60 bg-gold/15 text-gold"
+                  : "border-gold/15 bg-surface-700/60 text-ink-300 hover:bg-surface-600",
+              ].join(" ")}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] text-ink-700">
+          {wanted === 0
+            ? `${String(seats)} seats for people.`
+            : `${String(wanted)} bot${wanted === 1 ? "" : "s"}, ${String(seats - wanted - 1)} seat${
+                seats - wanted - 1 === 1 ? "" : "s"
+              } left for people besides you. You can add more in the room.`}
+        </p>
+      </Field>
+
       <Button
         intent="primary"
         data-action="create-room"
         disabled={!named}
         reason="Enter a name first"
         onClick={() => {
-          net.createRoom(nickname.trim(), seats);
+          net.createRoom(nickname.trim(), seats, wanted);
         }}
         className="justify-center"
       >
@@ -274,6 +315,14 @@ function RoomPanel({
                 host
               </span>
             )}
+            {seat.isBot && (
+              <span
+                className="rounded bg-gold/15 px-1.5 py-0.5 text-[10px] text-gold"
+                title="Played by the server"
+              >
+                bot
+              </span>
+            )}
             <span
               className={[
                 "text-[10px] font-semibold tracking-[0.1em] uppercase",
@@ -290,8 +339,10 @@ function RoomPanel({
             {isHost && seat.player !== you && (
               <button
                 type="button"
+                data-action={seat.isBot ? "remove-bot" : "kick"}
                 onClick={() => {
-                  net.kick(seat.player);
+                  if (seat.isBot) net.removeBot(seat.player);
+                  else net.kick(seat.player);
                 }}
                 className="rounded px-1.5 py-0.5 text-[10px] text-ink-700 transition-colors hover:bg-danger/20 hover:text-danger"
               >
@@ -303,6 +354,16 @@ function RoomPanel({
       </ul>
 
       <div className="flex flex-col gap-1.5">
+        {isHost && room.seats.length < room.maxPlayers && (
+          <Button
+            data-action="add-bot"
+            onClick={net.addBot}
+            className="justify-center"
+          >
+            Add a bot
+          </Button>
+        )}
+
         <Button
           intent={me?.ready === true ? "default" : "primary"}
           data-action="ready"

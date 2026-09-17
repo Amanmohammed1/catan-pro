@@ -17,9 +17,9 @@
  * could not either, because it holds the same redacted view.
  */
 
+import { botName, chooseMove } from "@hexport/bots";
 import { PROTOCOL_VERSION, encode } from "@hexport/protocol";
 import type { ClientMessage, RoomView, ServerMessage, WireView } from "@hexport/protocol";
-import type { Action } from "@hexport/engine";
 
 interface Options {
   readonly server: string;
@@ -56,85 +56,9 @@ function parseArgs(argv: readonly string[]): Options {
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-const NAMES = ["Ada", "Basil", "Cleo", "Dara", "Emre"];
-
-/**
- * Which legal move to play.
- *
- * Picked for a game that keeps moving and is not embarrassing to play against:
- * build the expensive things first (a bot that spends everything on roads never
- * scores), take the cheap wins, and never open a trade — haggling with a bot
- * that cannot evaluate an offer wastes the table's time. Offers from others are
- * declined politely.
- */
-function chooseMove(moves: readonly Action[], view: WireView): Action | null {
-  if (moves.length === 0) return null;
-  const find = (kind: Action["t"]): Action | undefined =>
-    moves.find((move) => move.t === kind);
-  const any = (): Action | null => moves[Math.floor(Math.random() * moves.length)] ?? null;
-
-  switch (view.phase.k) {
-    case "setup":
-      // Spread out: a random legal corner beats always taking the first.
-      return any();
-
-    case "discard":
-      return moves[0] ?? null;
-
-    case "moveRobber":
-    case "steal":
-      return any();
-
-    case "roadBuilding":
-      return any();
-
-    case "tradeOffer":
-      return (
-        moves.find((move) => move.t === "respondTrade" && !move.accept) ??
-        find("cancelTrade") ??
-        moves[0] ??
-        null
-      );
-
-    case "specialBuild":
-      return (
-        find("buildCity") ??
-        find("buildSettlement") ??
-        find("buyDevCard") ??
-        find("passSpecialBuild") ??
-        null
-      );
-
-    case "roll":
-      return find("playKnight") ?? find("rollDice") ?? null;
-
-    case "main": {
-      const build =
-        find("buildCity") ??
-        find("buildSettlement") ??
-        find("buyDevCard") ??
-        // Roads are worth it about half the time; always taking them starves
-        // the settlements that actually score.
-        (Math.random() < 0.5 ? find("buildRoad") : undefined);
-      if (build !== undefined) return build;
-
-      const play =
-        find("playKnight") ?? find("playRoadBuilding") ?? find("playYearOfPlenty");
-      if (play !== undefined && Math.random() < 0.4) return play;
-
-      // Convert a surplus rather than sitting on it.
-      if (Math.random() < 0.35) {
-        const trade = find("bankTrade");
-        if (trade !== undefined) return trade;
-      }
-
-      return find("endTurn") ?? null;
-    }
-
-    default:
-      return find("endTurn") ?? moves[0] ?? null;
-  }
-}
+// How a bot chooses is shared with the server's lobby bots (@hexport/bots), so
+// the opponents you get from `pnpm bots` play exactly like the ones you add
+// from the lobby.
 
 class Bot {
   private socket: WebSocket | null = null;
@@ -239,7 +163,10 @@ class Bot {
       await sleep(this.options.pace);
       const current = this.view;
       if (current === null || current.legalMoves.length === 0) return;
-      const move = chooseMove(current.legalMoves, current);
+      const move = chooseMove({
+        phase: current.phase,
+        legalMoves: current.legalMoves,
+      });
       if (move !== null) this.send({ t: "command", action: move });
     } finally {
       this.busy = false;
@@ -271,7 +198,7 @@ async function main(): Promise<void> {
   const humans = options.players - options.bots;
 
   let code = "";
-  const host = new Bot(NAMES[0] ?? "Ada", options, null, (room) => {
+  const host = new Bot(botName(0), options, null, (room) => {
     code = room.code;
   });
 
@@ -284,7 +211,7 @@ async function main(): Promise<void> {
 
   const bots: Bot[] = [host];
   for (let i = 1; i < options.bots; i += 1) {
-    const bot = new Bot(NAMES[i] ?? `Bot ${String(i)}`, options, { code }, () => {
+    const bot = new Bot(botName(i), options, { code }, () => {
       /* only the host acts on room updates */
     });
     await bot.connect();
