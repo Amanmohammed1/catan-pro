@@ -60,7 +60,21 @@ See `docs/milestones/M5.md`. Rule modules (ADR 0005), the 30-hex board, the
 bigger supply, and the Special Building Phase (ADR 0006). Fuzzed 10,000 games at
 both five and six players.
 
-### M4 — polish: not started.
+### M4 — polish: complete except spectators
+
+See `docs/milestones/M4.md`. Animation and sound driven by the event stream,
+counter-offers with a click-to-build trade panel, a log that lights up the board
+when you hover a line, and rematch.
+
+**Not done:**
+
+- **Spectator mode.** `WireView.you` is a seat id that every panel reads;
+  making it nullable touches the whole client. Deferred deliberately rather than
+  half-built. The server side is the smaller half: let a socket join a started
+  room without a seat and send it a view redacted for nobody.
+- **Frame rate on a low-powered machine** has still never been measured.
+- A stolen card does not physically fly between player cards; the theft is
+  announced, sounded and logged.
 
 M6 (Seafarers) onward: not started.
 
@@ -251,7 +265,7 @@ with the code in the other.
 
 ```bash
 pnpm verify        # lint, typecheck, both purity guards, both test lanes
-pnpm test          # fast lane, 500 tests, ~11s
+pnpm test          # fast lane, 513 tests, ~11s
 pnpm test:slow     # whole-game runs over real sockets, ~14s
 pnpm shots         # headless screenshots into .shots/ — then look at them
 pnpm shots --players 6
@@ -280,7 +294,7 @@ pnpm exec prettier --ignore-path /dev/null --write packages/scenarios/data
 ## 7. Current numbers
 
 ```
-fast lane     500 tests in 22 files, ~11s
+fast lane     513 tests in 22 files, ~11s
 slow lane       9 tests, ~14s
 fuzz          classic  10,000 games, 10.19M actions, 0 stalled, ~114s
               5 players 10,000 games, 19.48M actions, 0 stalled, ~214s

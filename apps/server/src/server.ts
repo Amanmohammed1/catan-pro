@@ -238,6 +238,9 @@ export class GameServer {
       case "command":
         this.onCommand(session, message.action);
         return;
+      case "rematch":
+        this.onRematch(session);
+        return;
       case "kick":
         this.onKick(session, message.player);
         return;
@@ -508,6 +511,45 @@ export class GameServer {
   }
 
   // ---- outbound ----------------------------------------------------------
+
+  /**
+   * Play the same people again on a new board.
+   *
+   * Host only, and only once the game is decided. The new match gets its own
+   * id, so the command log of the game just finished stays intact and
+   * replayable rather than being appended to.
+   */
+  private onRematch(session: Session): void {
+    const { room, seat } = session;
+    if (room === null || seat === null) {
+      this.fail(session, "not-seated", "Join a room first.");
+      return;
+    }
+    if (!room.isHost(seat.player)) {
+      this.fail(session, "not-host", "Only the host can start a rematch.");
+      return;
+    }
+
+    const started = room.rematch();
+    if (!started.ok) {
+      this.fail(session, "bad-message", started.reason);
+      return;
+    }
+
+    void this.store.createMatch({
+      matchId: room.matchId,
+      roomCode: room.code,
+      scenarioId: room.scenario.id,
+      seed: room.seed,
+      seedCommitment: room.seedCommitment,
+      playerNames: room.allSeats().map((s) => s.nickname),
+      createdAt: Date.now(),
+      finishedAt: null,
+      winner: null,
+    });
+
+    this.broadcastSnapshot(room);
+  }
 
   private sendSnapshot(session: Session, room: Room, player: PlayerId): void {
     const match = room.getMatch();

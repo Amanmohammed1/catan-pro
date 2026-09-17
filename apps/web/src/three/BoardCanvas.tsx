@@ -20,6 +20,7 @@ import { Robber } from "./Robber.js";
 import { Harbors } from "./Harbors.js";
 import { Frame } from "./Frame.js";
 import { Effects } from "./Effects.js";
+import { Spotlight, type Spotlit } from "./Spotlight.js";
 import { EdgePlacements, NodePlacements } from "./Placement.js";
 import { FrameMeter, type FrameStats } from "./FrameMeter.js";
 import { boardBounds, CAMERA_FOV } from "./layout3d.js";
@@ -50,6 +51,8 @@ export interface BoardCanvasProps {
   readonly showStats?: boolean;
   /** Hexes that just paid out; flashed briefly. Driven by the event log. */
   readonly producing?: ReadonlySet<TileId> | undefined;
+  /** Places a hovered log line is about. */
+  readonly spotlight?: Spotlit | null | undefined;
 }
 
 export function BoardCanvas({
@@ -66,6 +69,7 @@ export function BoardCanvas({
   youColor,
   showStats = false,
   producing,
+  spotlight,
 }: BoardCanvasProps): React.JSX.Element {
   const controls = useRef<OrbitHandle>(null);
   const [stats, setStats] = useState<FrameStats | null>(null);
@@ -117,6 +121,7 @@ export function BoardCanvas({
           <Roads board={board} roads={roads} colors={colors} />
           <Buildings buildings={buildings} colors={colors} />
           <Robber board={board} tile={robber} />
+          <Spotlight board={board} targets={spotlight ?? null} />
 
           <NodePlacements
             nodes={nodeKeys}

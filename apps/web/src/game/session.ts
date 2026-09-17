@@ -31,6 +31,11 @@ export interface GameSession {
   readonly deadline?: number | null;
   readonly onChat?: ((text: string) => void) | undefined;
   readonly chat?: readonly ChatLine[] | undefined;
+  /**
+   * Play the same people again on a new board. Online this is the host's to
+   * offer; hot-seat, anyone at the screen can start another.
+   */
+  readonly onRematch?: (() => void) | undefined;
 }
 
 export function seatColors(view: WireView): string[] {

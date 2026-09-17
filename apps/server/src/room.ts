@@ -60,11 +60,16 @@ export function generateRoomCode(): string {
 
 export class Room {
   public readonly code: string;
-  public readonly matchId: string;
   public readonly scenario: Scenario;
   public readonly maxPlayers: number;
-  public readonly seed: string;
-  public readonly seedCommitment: string;
+
+  /**
+   * A rematch is a new match in the same room: same people, same seats, a new
+   * board and a new seed — so these three change while the room does not.
+   */
+  public matchId: string;
+  public seed: string;
+  public seedCommitment: string;
 
   private readonly seats: Seat[] = [];
   private readonly chatLog: ChatLine[] = [];
@@ -217,6 +222,27 @@ export class Room {
     });
     this.resetTimer();
     return { ok: true };
+  }
+
+  /**
+   * Play again: the same people in the same seats, on a new board.
+   *
+   * Only once the game is decided — a rematch mid-game would be a way for a
+   * losing host to wipe the board. The seed is new, and so is the commitment
+   * published with it, because the old seed has already been revealed.
+   */
+  public rematch(): { ok: true } | { ok: false; reason: string } {
+    const match = this.match;
+    if (match === null) return { ok: false, reason: "The game has not started." };
+    if (!match.isOver) return { ok: false, reason: "That game is still going." };
+
+    this.match = null;
+    this.matchId = `${this.code}-${String(this.now())}`;
+    this.seed = generateSeed();
+    this.seedCommitment = commitToSeed(this.seed);
+    for (const seat of this.seats) seat.ready = true;
+
+    return this.start();
   }
 
   /** Restore an in-progress match, e.g. after a server restart. */

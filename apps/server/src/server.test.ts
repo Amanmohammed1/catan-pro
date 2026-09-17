@@ -599,3 +599,30 @@ describe("chat and host controls", () => {
     expect(notHost.errors.at(-1)?.code).toBe("not-host");
   });
 });
+
+/**
+ * Rematch: the same people, the same seats, a new board (M4).
+ *
+ * The happy path runs in the slow lane, which plays a hot-seat game to a winner
+ * and then presses the button. What matters here is that the two guards hold,
+ * because both of them are ways to take a game away from the people playing it.
+ */
+describe("rematch", () => {
+  it("refuses a rematch from a player who is not the host", async () => {
+    const { all } = await seatedGame(3);
+    const notHost = all[1] as TestClient;
+
+    notHost.send({ t: "rematch" });
+    await notHost.until(() => notHost.errors.length > 0, "error");
+    expect(notHost.errors.at(-1)?.code).toBe("not-host");
+  });
+
+  it("refuses a rematch while the game is still going", async () => {
+    // Otherwise a host losing badly could wipe the board and start again.
+    const { host } = await seatedGame(3);
+
+    host.send({ t: "rematch" });
+    await host.until(() => host.errors.length > 0, "error");
+    expect(host.errors.at(-1)?.message).toMatch(/still going/);
+  });
+});

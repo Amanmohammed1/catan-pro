@@ -272,6 +272,11 @@ export function useConnection(url: string, options: ConnectionOptions = {}) {
     [send],
   );
 
+  /** Host only, once the game is decided: same seats, new board. */
+  const rematch = useCallback(() => {
+    send({ t: "rematch" });
+  }, [send]);
+
   const leave = useCallback(() => {
     try {
       storage()?.removeItem(tokenKey);
@@ -302,6 +307,7 @@ export function useConnection(url: string, options: ConnectionOptions = {}) {
     command,
     kick,
     sendChat,
+    rematch,
     leave,
     dismissError,
   };

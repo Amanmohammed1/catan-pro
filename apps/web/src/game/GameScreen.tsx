@@ -29,6 +29,7 @@ import {
   type SoundName,
 } from "../audio/sounds.js";
 import { latestCue, useEventCues, type Cue } from "./useEventCues.js";
+import { targetsOf, type EventTargets } from "./eventTargets.js";
 import {
   describePrompt,
   playerNames,
@@ -90,6 +91,7 @@ export function GameScreen({
 }): React.JSX.Element {
   const { board, view, log, dispatch } = session;
   const [mode, setMode] = useState<BuildMode>("none");
+  const [spotlight, setSpotlight] = useState<EventTargets | null>(null);
   const showStats = useUi((s) => s.showStats);
 
   const names = useMemo(() => playerNames(view), [view]);
@@ -214,6 +216,7 @@ export function GameScreen({
             youColor={youColor}
             showStats={showStats}
             producing={producing}
+            spotlight={spotlight}
           />
 
           <PromptBanner
@@ -281,6 +284,9 @@ export function GameScreen({
             colors={colors}
             {...(session.chat === undefined ? {} : { chat: session.chat })}
             onChat={session.onChat}
+            onHighlight={(event) => {
+              setSpotlight(event === null ? null : targetsOf(event));
+            }}
           />
         </div>
       </div>
@@ -635,6 +641,19 @@ function WinnerOverlay({
         <p className="mt-3 text-xs text-ink-500">
           Points on the board. Hidden victory cards count too.
         </p>
+
+        {session.onRematch !== undefined && (
+          <div className="mt-4">
+            <Button
+              intent="primary"
+              data-action="rematch"
+              onClick={session.onRematch}
+              className="justify-center"
+            >
+              Play again
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

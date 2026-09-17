@@ -58,6 +58,8 @@ export const clientMessageSchema = z.discriminatedUnion("t", [
   /** Host only. */
   z.object({ t: z.literal("kick"), player: z.number().int().min(0).max(5) }),
   z.object({ t: z.literal("chat"), text: z.string().trim().min(1).max(400) }),
+  /** Host only, and only once the game is over: same seats, fresh board. */
+  z.object({ t: z.literal("rematch") }),
   z.object({ t: z.literal("ping") }),
 ]);
 

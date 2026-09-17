@@ -34,6 +34,10 @@ export function OnlineGame({
       deadline: net.deadline,
       onChat: net.sendChat,
       chat: net.chatLines,
+      // The server refuses a rematch from anyone but the host, and only once
+      // the game is decided; offering the button to everyone would mean
+      // explaining a refusal instead.
+      onRematch: net.room?.hostPlayer === net.view.you ? net.rematch : undefined,
     };
   }, [
     net.board,
@@ -45,6 +49,8 @@ export function OnlineGame({
     net.deadline,
     net.sendChat,
     net.chatLines,
+    net.rematch,
+    net.room,
   ]);
 
   if (net.status !== "online") {
