@@ -144,3 +144,165 @@ export function citySpots(state: GameState, player: PlayerId): NodeId[] {
     canPlaceCity(state, player, node),
   );
 }
+
+// ---------------------------------------------------------------------------
+// Seafarers: ships (ADR 0008). Rule references are to the 2025 Seafarers
+// rulebook in docs/rules/.
+// ---------------------------------------------------------------------------
+
+export interface ShipPlacementOptions {
+  /** Setup placement: the ship stands alone beside the settlement just placed. */
+  readonly setup?: boolean;
+  /**
+   * The edge a ship is moving off.
+   *
+   * That edge is ignored for both occupancy and connectivity, because the ship
+   * is in the air: it must not count as its own support, and its old square is
+   * free by the time it lands.
+   */
+  readonly movingFrom?: EdgeId | null;
+}
+
+/**
+ * Can this player put a ship here?
+ *
+ * Seafarers p.2: "Ships are placed on the empty edges of sea hexes. Ships and
+ * roads may not occupy the same coastal edge. A new ship must connect to one of
+ * your existing ships or buildings (not roads). Like roads, you may not build a
+ * ship past an opponent's building. Also, you may not place any new ships on an
+ * edge of the hex occupied by the pirate."
+ *
+ * The "not roads" is the important asymmetry: a road network does not carry a
+ * ship onward. Roads and ships only join at one of your own buildings, which is
+ * the same rule that governs the Longest Route.
+ */
+export function canPlaceShip(
+  state: GameState,
+  player: PlayerId,
+  edge: EdgeId,
+  options: ShipPlacementOptions = {},
+): boolean {
+  const graph = state.board.edges[edge];
+  if (graph === undefined) return false;
+
+  // Sea and coast carry ships; a wholly inland edge never does.
+  if (graph.kind === "land") return false;
+
+  // One piece per edge, road or ship.
+  if (state.roads[edge] !== undefined) return false;
+  if (state.ships[edge] !== undefined) return false;
+
+  const seat = state.players[player];
+  if (seat === undefined) return false;
+  // A ship in flight is already off the board, so it costs no stock to land.
+  if (options.movingFrom == null && seat.pieces.ships <= 0) return false;
+
+  if (state.pirate !== null && graph.tiles.includes(state.pirate)) return false;
+
+  if (options.setup === true) return true;
+
+  for (const nodeId of graph.nodes) {
+    const building = state.buildings[nodeId];
+
+    // Your own building always connects.
+    if (building?.player === player) return true;
+
+    // An opponent's building blocks a connection made through this corner.
+    if (building !== undefined) continue;
+
+    for (const otherEdge of state.board.nodes[nodeId]?.edges ?? []) {
+      if (otherEdge === edge || otherEdge === options.movingFrom) continue;
+      if (state.ships[otherEdge]?.player === player) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Is this end of a ship "open"?
+ *
+ * Seafarers p.2: "A ship's end is 'open' when it is not next to one of your
+ * ships or buildings."
+ */
+function shipEndIsOpen(
+  state: GameState,
+  player: PlayerId,
+  edge: EdgeId,
+  node: NodeId,
+): boolean {
+  if (state.buildings[node]?.player === player) return false;
+
+  for (const other of state.board.nodes[node]?.edges ?? []) {
+    if (other === edge) continue;
+    if (state.ships[other]?.player === player) return false;
+  }
+  return true;
+}
+
+/**
+ * May this player move this ship to that edge? Seafarers p.2.
+ *
+ * The rulebook lists four restrictions. Three are direct: not a ship built this
+ * turn, at least one open end, and nothing to or from the pirate's hex.
+ *
+ * The fourth — "you may not move a ship that is a part of a continuous line of
+ * ships connecting two of your buildings, even if another player's building is
+ * built on that line to interrupt it" — needs no separate check, because it is
+ * implied by the open-end test. An open end reaches neither your ship nor your
+ * building, so it cannot lead on to a second building of yours; a ship joining
+ * two of your buildings therefore has no open end. The clause is there to say
+ * that an opponent's building interrupting the line does not free the ship,
+ * which is exactly what the open-end test already does.
+ */
+export function canMoveShip(
+  state: GameState,
+  player: PlayerId,
+  from: EdgeId,
+  to: EdgeId,
+): boolean {
+  if (from === to) return false;
+
+  const ship = state.ships[from];
+  if (ship === undefined || ship.player !== player) return false;
+
+  const seat = state.players[player];
+  if (seat === undefined) return false;
+  // p.2: one ship per Action phase.
+  if (seat.movedShipThisTurn) return false;
+  // p.2: "You may not move a ship you built this turn."
+  if (ship.builtOnTurn >= state.turn) return false;
+
+  const graph = state.board.edges[from];
+  if (graph === undefined) return false;
+  if (state.pirate !== null && graph.tiles.includes(state.pirate)) return false;
+
+  const open = graph.nodes.some((node) => shipEndIsOpen(state, player, from, node));
+  if (!open) return false;
+
+  return canPlaceShip(state, player, to, { movingFrom: from });
+}
+
+/** Every edge where this player could legally build a ship. */
+export function shipSpots(state: GameState, player: PlayerId): EdgeId[] {
+  return Object.keys(state.board.edges).filter((edge) =>
+    canPlaceShip(state, player, edge),
+  );
+}
+
+/** Every ship move this player could legally make, as (from, to) pairs. */
+export function shipMoves(
+  state: GameState,
+  player: PlayerId,
+): { readonly from: EdgeId; readonly to: EdgeId }[] {
+  const out: { from: EdgeId; to: EdgeId }[] = [];
+
+  for (const [from, ship] of Object.entries(state.ships)) {
+    if (ship.player !== player) continue;
+    for (const to of Object.keys(state.board.edges)) {
+      if (canMoveShip(state, player, from, to)) out.push({ from, to });
+    }
+  }
+
+  return out;
+}

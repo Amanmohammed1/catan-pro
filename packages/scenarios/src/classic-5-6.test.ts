@@ -110,9 +110,9 @@ describe("the built board", () => {
     const tiles = Object.values(board.tiles);
     expect(tiles.filter((t) => t.number !== null)).toHaveLength(28);
     expect(tiles.filter((t) => t.terrain === "desert")).toHaveLength(2);
-    expect(
-      tiles.every((t) => (t.terrain === "desert") === (t.number === null)),
-    ).toBe(true);
+    expect(tiles.every((t) => (t.terrain === "desert") === (t.number === null))).toBe(
+      true,
+    );
   });
 
   it("keeps the red numbers apart (p.10)", () => {
@@ -131,7 +131,9 @@ describe("the built board", () => {
     const terrains = (b: typeof board): string =>
       Object.keys(b.tiles)
         .sort()
-        .map((id) => `${b.tiles[id]?.terrain ?? ""}${String(b.tiles[id]?.number ?? "")}`)
+        .map(
+          (id) => `${b.tiles[id]?.terrain ?? ""}${String(b.tiles[id]?.number ?? "")}`,
+        )
         .join("|");
 
     expect(terrains(again)).toBe(terrains(board));
@@ -153,8 +155,16 @@ describe("a six player game", () => {
   });
 
   it("gives every player the same pieces as the base game", () => {
+    // The extension adds cards, not pieces (2022 p.2), and no ships: those are
+    // Seafarers'. The stock now carries a ships figure for every scenario, so
+    // the assertion names it rather than leaving it to chance.
     for (const seat of game.players) {
-      expect(seat.pieces).toEqual({ roads: 15, settlements: 5, cities: 4 });
+      expect(seat.pieces).toEqual({
+        roads: 15,
+        settlements: 5,
+        cities: 4,
+        ships: 0,
+      });
     }
   });
 

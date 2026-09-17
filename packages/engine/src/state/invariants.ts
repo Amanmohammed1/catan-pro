@@ -63,7 +63,8 @@ export function checkInvariants(state: GameState): InvariantViolation[] {
     if (
       seat.pieces.roads < 0 ||
       seat.pieces.settlements < 0 ||
-      seat.pieces.cities < 0
+      seat.pieces.cities < 0 ||
+      seat.pieces.ships < 0
     ) {
       problems.push({
         rule: "piece-stock-non-negative",
@@ -82,26 +83,40 @@ export function checkInvariants(state: GameState): InvariantViolation[] {
     );
     const settlements = buildings.filter((b) => b.kind === "settlement").length;
     const cities = buildings.filter((b) => b.kind === "city").length;
+    const shipsOnBoard = Object.values(state.ships).filter(
+      (ship) => ship.player === seat.id,
+    ).length;
 
-    // Rules p.5: 15 roads, 5 settlements, 4 cities. A city returns its
-    // settlement to the supply, so settlements on board plus stock is constant
-    // only when cities are accounted for.
-    if (roadsOnBoard + seat.pieces.roads !== 15) {
+    // Rules p.5: 15 roads, 5 settlements, 4 cities in the base box. The figures
+    // come from the scenario rather than being hardcoded, because a scenario is
+    // free to hand out a different number — Seafarers adds 15 ships, and these
+    // checks would otherwise quietly assume the base box for every board.
+    // A city returns its settlement to the supply, so settlements on board plus
+    // stock is constant only when cities are accounted for.
+    const expected = state.config.pieces;
+
+    if (roadsOnBoard + seat.pieces.roads !== expected.roads) {
       problems.push({
         rule: "road-stock",
-        detail: `player ${String(seat.id)}: ${String(roadsOnBoard)} on board + ${String(seat.pieces.roads)} in stock`,
+        detail: `player ${String(seat.id)}: ${String(roadsOnBoard)} on board + ${String(seat.pieces.roads)} in stock, expected ${String(expected.roads)}`,
       });
     }
-    if (settlements + seat.pieces.settlements !== 5) {
+    if (settlements + seat.pieces.settlements !== expected.settlements) {
       problems.push({
         rule: "settlement-stock",
-        detail: `player ${String(seat.id)}: ${String(settlements)} on board + ${String(seat.pieces.settlements)} in stock`,
+        detail: `player ${String(seat.id)}: ${String(settlements)} on board + ${String(seat.pieces.settlements)} in stock, expected ${String(expected.settlements)}`,
       });
     }
-    if (cities + seat.pieces.cities !== 4) {
+    if (cities + seat.pieces.cities !== expected.cities) {
       problems.push({
         rule: "city-stock",
-        detail: `player ${String(seat.id)}: ${String(cities)} on board + ${String(seat.pieces.cities)} in stock`,
+        detail: `player ${String(seat.id)}: ${String(cities)} on board + ${String(seat.pieces.cities)} in stock, expected ${String(expected.cities)}`,
+      });
+    }
+    if (shipsOnBoard + seat.pieces.ships !== expected.ships) {
+      problems.push({
+        rule: "ship-stock",
+        detail: `player ${String(seat.id)}: ${String(shipsOnBoard)} on board + ${String(seat.pieces.ships)} in stock, expected ${String(expected.ships)}`,
       });
     }
   }
@@ -160,6 +175,21 @@ export function checkInvariants(state: GameState): InvariantViolation[] {
       problems.push({
         rule: "road-placement",
         detail: `road on ${edgeId}, which is not an edge`,
+      });
+    }
+  }
+  for (const edgeId of Object.keys(state.ships)) {
+    if (state.board.edges[edgeId] === undefined) {
+      problems.push({
+        rule: "ship-placement",
+        detail: `ship on ${edgeId}, which is not an edge`,
+      });
+    }
+    // Seafarers p.2: one piece to an edge, road or ship, never both.
+    if (state.roads[edgeId] !== undefined) {
+      problems.push({
+        rule: "ship-placement",
+        detail: `edge ${edgeId} carries both a road and a ship`,
       });
     }
   }

@@ -95,8 +95,10 @@ function makePlayer(id: PlayerId, name: string, scenario: Scenario): PlayerState
       roads: scenario.pieces.roads,
       settlements: scenario.pieces.settlements,
       cities: scenario.pieces.cities,
+      ships: scenario.pieces.ships,
     },
     playedDevCardThisTurn: false,
+    movedShipThisTurn: false,
   };
 }
 
@@ -140,6 +142,14 @@ export function createGame(options: CreateGameOptions): GameState {
     ...DEFAULT_CONFIG,
     modules: scenario.modules,
     victoryPoints: scenario.victoryPoints,
+    // The scenario is the authority on piece counts; the invariants read these
+    // back rather than assuming the base box (ADR 0008).
+    pieces: {
+      roads: scenario.pieces.roads,
+      settlements: scenario.pieces.settlements,
+      cities: scenario.pieces.cities,
+      ships: scenario.pieces.ships,
+    },
     ...options.config,
   };
 
@@ -154,7 +164,10 @@ export function createGame(options: CreateGameOptions): GameState {
     moduleState: initialModuleState(modules, { scenario, players: order }),
     buildings: {},
     roads: {},
+    ships: {},
     robber: startingRobberTile(board.tiles),
+    // Placed by the scenario when Seafarers is in play; never in a base game.
+    pirate: null,
     // Rules p.12: round one runs in seat order, settlement then road.
     phase: {
       k: "setup",

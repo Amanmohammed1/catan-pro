@@ -9,6 +9,7 @@
  */
 
 import { setupPlayerAt } from "../setup/createGame.js";
+import { extraLegalMoves, resolveModules } from "../modules/index.js";
 import { bestTradeRate, canAfford } from "../state/helpers.js";
 import { citySpots, roadSpots, settlementSpots } from "./placement.js";
 import type { Action } from "../actions/types.js";
@@ -263,6 +264,9 @@ export function legalMoves(state: GameState, player: PlayerId): Action[] {
         ...buildActions(state, player),
         ...tradeActions(state, player),
         ...devCardActions(state, player),
+        // Moves the loaded modules add — Seafarers' ships (ADR 0007, 0008).
+        // Empty for a base game, which loads no module that contributes any.
+        ...extraLegalMoves(resolveModules(state.config.modules), state, player),
         { t: "endTurn", player },
       ];
     }

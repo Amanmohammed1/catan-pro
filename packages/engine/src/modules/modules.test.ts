@@ -7,7 +7,12 @@ import {
   supplyFor,
   turnHandoff,
 } from "./index.js";
-import { completeSetup, fixedScenario, intoMainPhase, newGame } from "../reducers/testHelpers.js";
+import {
+  completeSetup,
+  fixedScenario,
+  intoMainPhase,
+  newGame,
+} from "../reducers/testHelpers.js";
 
 /**
  * The rule module registry (CLAUDE.md golden rule 7).
@@ -24,7 +29,17 @@ describe("resolving modules", () => {
   });
 
   it("refuses an unknown id rather than ignoring it", () => {
-    expect(() => resolveModules(["seafarers"])).toThrow(UnknownModuleError);
+    // Deliberately not a real expansion name: "seafarers" stood here until M6
+    // registered it, at which point this test started asserting something
+    // false. An id nobody will ever implement keeps it honest.
+    expect(() => resolveModules(["nonesuch"])).toThrow(UnknownModuleError);
+  });
+
+  it("resolves the Seafarers module a scenario names", () => {
+    expect(resolveModules(["base", "seafarers"]).map((m) => m.id)).toEqual([
+      "base",
+      "seafarers",
+    ]);
   });
 });
 

@@ -119,6 +119,7 @@ function beginNextTurn(state: GameState): GameState {
     players: state.players.map((seat) => ({
       ...seat,
       playedDevCardThisTurn: false,
+      movedShipThisTurn: false,
     })),
   };
 }
@@ -1264,7 +1265,15 @@ export function reduce(state: GameState, action: Action): ReduceResult {
       if ("ok" in handled) {
         return { ok: false, reason: handled.reason, action: handled.action };
       }
-      return { ok: true, state: handled.state, events: handled.events };
+      // Special cards and the win check run here rather than inside the module:
+      // `settle()` reaches queries/scores, which reaches the module registry, so
+      // a module calling it would close an import cycle.
+      const settled = settle(handled.state);
+      return {
+        ok: true,
+        state: settled.state,
+        events: [...handled.events, ...settled.events],
+      };
     }
   }
 }

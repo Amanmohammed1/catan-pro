@@ -19,6 +19,7 @@ import type {
   Building,
   DevCardKind,
   ResourceCounts,
+  Ship,
   SpecialCard,
 } from "../state/types.js";
 import type { Phase } from "../phases/types.js";
@@ -35,6 +36,8 @@ export interface PublicPlayer {
     readonly roads: number;
     readonly settlements: number;
     readonly cities: number;
+    /** Seafarers only; zero in a base game. */
+    readonly ships: number;
   };
   readonly publicPoints: number;
 }
@@ -58,7 +61,10 @@ export interface PlayerView {
   readonly devDeckSize: number;
   readonly buildings: Readonly<Record<NodeId, Building>>;
   readonly roads: Readonly<Record<EdgeId, PlayerId>>;
+  /** Ships are public: they sit on the board like any other piece. */
+  readonly ships: Readonly<Record<EdgeId, Ship>>;
   readonly robber: TileId;
+  readonly pirate: TileId | null;
   readonly phase: Phase;
   readonly currentPlayer: PlayerId;
   readonly turn: number;
@@ -112,7 +118,9 @@ export function playerView(state: GameState, you: PlayerId): PlayerView {
     devDeckSize: state.devDeck.length,
     buildings: state.buildings,
     roads: state.roads,
+    ships: state.ships,
     robber: state.robber,
+    pirate: state.pirate,
     phase: state.phase,
     currentPlayer: state.currentPlayer,
     turn: state.turn,

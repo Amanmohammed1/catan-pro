@@ -50,6 +50,14 @@ export const COSTS = {
   settlement: { brick: 1, lumber: 1, wool: 1, grain: 1, ore: 0 },
   city: { brick: 0, lumber: 0, wool: 0, grain: 2, ore: 3 },
   devCard: { brick: 0, lumber: 0, wool: 1, grain: 1, ore: 1 },
+  /**
+   * A ship: one lumber and one wool (Seafarers p.2).
+   *
+   * What a road costs, with wool in place of the brick. The rulebook prints
+   * this as icons rather than words, so it was read off the rendered page —
+   * the extracted text gives only the "BUILDING COST:" heading.
+   */
+  ship: { brick: 0, lumber: 1, wool: 1, grain: 0, ore: 0 },
 } as const satisfies Record<string, ResourceCounts>;
 
 export type BuildingKind = "settlement" | "city";
@@ -91,6 +99,8 @@ export interface PieceStock {
   readonly roads: number;
   readonly settlements: number;
   readonly cities: number;
+  /** Seafarers only. Zero in a base game, which has no ships in the box. */
+  readonly ships: number;
 }
 
 export interface PlayerState {
@@ -104,6 +114,19 @@ export interface PlayerState {
   readonly pieces: PieceStock;
   /** Rules p.7: at most one development card may be played per turn. */
   readonly playedDevCardThisTurn: boolean;
+  /** Seafarers p.2: at most one ship may be moved per turn. */
+  readonly movedShipThisTurn: boolean;
+}
+
+/**
+ * A ship on the board. Seafarers p.2.
+ *
+ * Unlike a road, which only records its owner, a ship remembers the turn it was
+ * built: "You may not move a ship you built this turn."
+ */
+export interface Ship {
+  readonly player: PlayerId;
+  readonly builtOnTurn: number;
 }
 
 export interface SpecialCard {
@@ -121,6 +144,16 @@ export interface GameConfig {
   readonly minLongestRoad: number;
   /** Rules p.8: knights needed for Largest Army. */
   readonly minLargestArmy: number;
+  /**
+   * How many of each piece a player starts with, copied from the scenario.
+   *
+   * Here rather than read from the scenario because the engine is a leaf: it
+   * cannot import `packages/scenarios` (golden rule 1), and `GameState` carries
+   * only a `scenarioId`. `GameConfig` already exists to copy scenario facts
+   * into state so a replayed game resolves the same rules, and the stock
+   * invariants need these figures.
+   */
+  readonly pieces: PieceStock;
 }
 
 export const DEFAULT_CONFIG: GameConfig = {
@@ -129,6 +162,8 @@ export const DEFAULT_CONFIG: GameConfig = {
   handLimit: 7,
   minLongestRoad: 5,
   minLargestArmy: 3,
+  // Rules p.5: 15 roads, 5 settlements, 4 cities, and no ships in the base box.
+  pieces: { roads: 15, settlements: 5, cities: 4, ships: 0 },
 };
 
 export interface GameState {
@@ -154,7 +189,16 @@ export interface GameState {
 
   readonly buildings: Readonly<Record<NodeId, Building>>;
   readonly roads: Readonly<Record<EdgeId, PlayerId>>;
+  /** Seafarers ships, by edge. Always empty in a base game (ADR 0008). */
+  readonly ships: Readonly<Record<EdgeId, Ship>>;
   readonly robber: TileId;
+  /**
+   * The pirate, on a sea hex. Null in a base game and before it is first placed.
+   *
+   * Seafarers p.2: no ship may be built on, or moved to or from, an edge of the
+   * hex the pirate occupies.
+   */
+  readonly pirate: TileId | null;
 
   readonly phase: Phase;
   readonly currentPlayer: PlayerId;

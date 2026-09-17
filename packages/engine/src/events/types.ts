@@ -160,6 +160,18 @@ export type GameEvent =
       readonly players: readonly PlayerId[];
     }
   | { readonly e: "specialBuildPassed"; readonly player: PlayerId }
+  | {
+      readonly e: "builtShip";
+      readonly player: PlayerId;
+      readonly edge: EdgeId;
+      readonly free: boolean;
+    }
+  | {
+      readonly e: "shipMoved";
+      readonly player: PlayerId;
+      readonly from: EdgeId;
+      readonly to: EdgeId;
+    }
   | { readonly e: "gameEnded"; readonly winner: PlayerId; readonly points: number };
 
 export type EventKind = GameEvent["e"];

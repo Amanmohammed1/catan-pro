@@ -95,7 +95,28 @@ export type Action =
 
   // ---- 5–6 player extension (ADR 0006) ------------------------------------
   /** Give up the rest of your Special Building window. */
-  | { readonly t: "passSpecialBuild"; readonly player: PlayerId };
+  | { readonly t: "passSpecialBuild"; readonly player: PlayerId }
+
+  // ---- Seafarers (ADR 0008) -----------------------------------------------
+  /**
+   * Build a ship on a sea or coast edge (Seafarers p.2).
+   *
+   * Owned by the `seafarers` rule module, which is why no base-game scenario
+   * ever offers it: the module is only loaded when the scenario names it.
+   */
+  | { readonly t: "buildShip"; readonly player: PlayerId; readonly edge: EdgeId }
+  /**
+   * Move one ship with an open end to another legal edge (Seafarers p.2).
+   *
+   * At most one per turn, never a ship built this turn, and never one holding
+   * together a route between two of your own buildings.
+   */
+  | {
+      readonly t: "moveShip";
+      readonly player: PlayerId;
+      readonly from: EdgeId;
+      readonly to: EdgeId;
+    };
 
 export type ActionKind = Action["t"];
 

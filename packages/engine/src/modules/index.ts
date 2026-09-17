@@ -15,6 +15,7 @@
 
 import { baseModule } from "./base.js";
 import { ext56Module } from "./ext56.js";
+import { seafarersModule } from "./seafarers.js";
 import type { Action, Rejection } from "../actions/types.js";
 import type { GameEvent } from "../events/types.js";
 import type { Phase } from "../phases/types.js";
@@ -41,10 +42,12 @@ export type {
 } from "./types.js";
 export { BASE_SUPPLY, baseModule } from "./base.js";
 export { ext56Module } from "./ext56.js";
+export { seafarersModule, seafarersStateOf, type SeafarersState } from "./seafarers.js";
 
 const REGISTRY: Readonly<Record<string, RuleModule>> = {
   base: baseModule,
   ext56: ext56Module,
+  seafarers: seafarersModule,
 };
 
 export class UnknownModuleError extends Error {}

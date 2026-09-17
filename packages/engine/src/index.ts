@@ -124,6 +124,7 @@ export {
   type PlayerId,
   type PlayerState,
   type ResourceCounts,
+  type Ship,
   type SpecialCard,
 } from "./state/types.js";
 
@@ -181,13 +182,18 @@ export {
 } from "./queries/scores.js";
 
 export {
+  canMoveShip,
   canPlaceCity,
   canPlaceRoad,
   canPlaceSettlement,
+  canPlaceShip,
   citySpots,
   roadSpots,
   satisfiesDistanceRule,
   settlementSpots,
+  shipMoves,
+  shipSpots,
+  type ShipPlacementOptions,
 } from "./queries/placement.js";
 
 export {
@@ -233,8 +239,11 @@ export {
   onPhaseEnter,
   resolveModules,
   scoreContribution,
+  seafarersModule,
+  seafarersStateOf,
   supplyFor,
   turnHandoff,
+  type SeafarersState,
   type DiceRoll,
   type ModuleEffect,
   type ModuleReducer,

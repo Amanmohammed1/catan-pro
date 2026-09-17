@@ -81,6 +81,11 @@ export const actionSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("cancelTrade"), player }),
 
   z.object({ t: z.literal("passSpecialBuild"), player }),
+
+  // Seafarers (ADR 0008). Accepted at the wire boundary for every game; the
+  // engine still refuses them unless the scenario loaded the module.
+  z.object({ t: z.literal("buildShip"), player, edge: id }),
+  z.object({ t: z.literal("moveShip"), player, from: id, to: id }),
 ]);
 
 export type WireAction = z.infer<typeof actionSchema>;
