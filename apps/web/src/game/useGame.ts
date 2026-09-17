@@ -43,7 +43,12 @@ export interface NewGameOptions {
 }
 
 export function startGame(options: NewGameOptions): GameStore {
-  const scenario = loadScenario(options.scenarioId ?? "classic-3-4");
+  // Three or four players share the classic island; five or six need the
+  // larger board, which brings the extension's rules with it (ADR 0006). The
+  // server makes the same choice for online games.
+  const scenario = loadScenario(
+    options.scenarioId ?? (options.players > 4 ? "classic-5-6" : "classic-3-4"),
+  );
   const state = createGame({
     scenario,
     seed: options.seed,

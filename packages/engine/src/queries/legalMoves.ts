@@ -285,6 +285,13 @@ export function legalMoves(state: GameState, player: PlayerId): Action[] {
       return out;
     }
 
+    case "specialBuild": {
+      // The 5–6 Special Building Phase: build and buy, nothing else. No trade
+      // of any kind and no development card may be played (ADR 0006).
+      if (phase.queue[0] !== player) return [];
+      return [...buildActions(state, player), { t: "passSpecialBuild", player }];
+    }
+
     case "gameOver":
       return [];
 

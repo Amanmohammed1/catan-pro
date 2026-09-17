@@ -112,37 +112,32 @@ function JoinForm({
 
       <Field label="Players" htmlFor="seats">
         <div className="flex gap-1.5" role="radiogroup" aria-labelledby="seats-label">
-          {[3, 4, 5, 6].map((n) => {
-            // The 5–6 player board is the next milestone; the base game's
-            // island only seats four.
-            const unavailable = n > 4;
-            return (
-              <button
-                key={n}
-                type="button"
-                role="radio"
-                aria-checked={seats === n}
-                disabled={unavailable}
-                title={
-                  unavailable
-                    ? "The larger 5–6 player island is not built yet"
-                    : `${String(n)} players`
-                }
-                onClick={() => {
-                  setSeats(n);
-                }}
-                className={[
-                  "flex-1 rounded-[11px] border py-2.5 font-num text-base font-semibold transition-colors",
-                  seats === n
-                    ? "border-gold/60 bg-gold/15 text-gold"
-                    : "border-gold/15 bg-surface-700/60 text-ink-300 enabled:hover:bg-surface-600",
-                  unavailable ? "cursor-not-allowed opacity-35" : "",
-                ].join(" ")}
-              >
-                {n}
-              </button>
-            );
-          })}
+          {[3, 4, 5, 6].map((n) => (
+            <button
+              key={n}
+              type="button"
+              role="radio"
+              aria-checked={seats === n}
+              // Five and six seat the larger island, with a building window
+              // between turns for everyone else.
+              title={
+                n > 4
+                  ? `${String(n)} players — the larger island, with special building`
+                  : `${String(n)} players`
+              }
+              onClick={() => {
+                setSeats(n);
+              }}
+              className={[
+                "flex-1 rounded-[11px] border py-2.5 font-num text-base font-semibold transition-colors",
+                seats === n
+                  ? "border-gold/60 bg-gold/15 text-gold"
+                  : "border-gold/15 bg-surface-700/60 text-ink-300 hover:bg-surface-600",
+              ].join(" ")}
+            >
+              {n}
+            </button>
+          ))}
         </div>
       </Field>
 

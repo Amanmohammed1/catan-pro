@@ -68,6 +68,8 @@ describe("the shipped scenarios", () => {
     expect(classic.cells).toHaveLength(19);
     expect(classic.numbers.path).toHaveLength(19);
     expect(classic.ports).toHaveLength(9);
+    expect(classic.numbers.mode).toBe("path");
+    if (classic.numbers.mode !== "path") return;
     expect(classic.numbers.sequence).toHaveLength(18);
   });
 });

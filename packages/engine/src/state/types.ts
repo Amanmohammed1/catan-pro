@@ -111,6 +111,8 @@ export interface SpecialCard {
 }
 
 export interface GameConfig {
+  /** Rule modules in play, by id. Resolved through engine/modules. */
+  readonly modules: readonly string[];
   readonly victoryPoints: number;
   /** Rules p.5: discard on more than 7 cards. */
   readonly handLimit: number;
@@ -121,6 +123,7 @@ export interface GameConfig {
 }
 
 export const DEFAULT_CONFIG: GameConfig = {
+  modules: ["base"],
   victoryPoints: 10,
   handLimit: 7,
   minLongestRoad: 5,

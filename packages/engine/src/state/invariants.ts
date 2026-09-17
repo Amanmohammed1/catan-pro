@@ -7,9 +7,9 @@
  * quietly producing a wrong board three hundred turns later.
  */
 
-import { BANK_PER_RESOURCE } from "../setup/createGame.js";
+import { resolveModules, supplyFor } from "../modules/index.js";
 import { publicVictoryPoints, victoryPoints } from "../queries/scores.js";
-import { DEV_DECK_COMPOSITION, RESOURCE_KINDS, type GameState } from "./types.js";
+import { RESOURCE_KINDS, type GameState } from "./types.js";
 
 export interface InvariantViolation {
   readonly rule: string;
@@ -19,6 +19,10 @@ export interface InvariantViolation {
 /** Every broken invariant in this state. Empty means the state is sound. */
 export function checkInvariants(state: GameState): InvariantViolation[] {
   const problems: InvariantViolation[] = [];
+
+  // What this game shipped with: the base box, or a bigger one when a module
+  // such as the 5–6 extension is loaded.
+  const supply = supplyFor(resolveModules(state.config.modules));
 
   // ---- the bank -----------------------------------------------------------
   for (const kind of RESOURCE_KINDS) {
@@ -32,14 +36,15 @@ export function checkInvariants(state: GameState): InvariantViolation[] {
 
   // ---- resource conservation ---------------------------------------------
   // Cards only ever move between the bank and player hands, so every resource
-  // type must always total the 19 the game shipped with (p.2).
+  // type must always total what the box holds: 19 in the base game (p.2), 24
+  // with the 5–6 extension (5–6 rules 2022 p.4).
   for (const kind of RESOURCE_KINDS) {
     let total = state.bank[kind];
     for (const seat of state.players) total += seat.resources[kind];
-    if (total !== BANK_PER_RESOURCE) {
+    if (total !== supply.bankPerResource) {
       problems.push({
         rule: "resource-conservation",
-        detail: `${kind} totals ${String(total)}, expected ${String(BANK_PER_RESOURCE)}`,
+        detail: `${kind} totals ${String(total)}, expected ${String(supply.bankPerResource)}`,
       });
     }
   }
@@ -104,10 +109,7 @@ export function checkInvariants(state: GameState): InvariantViolation[] {
   // ---- development cards --------------------------------------------------
   let devTotal = state.devDeck.length;
   for (const seat of state.players) devTotal += seat.devCards.length;
-  const expectedDev = Object.values(DEV_DECK_COMPOSITION).reduce(
-    (sum, n) => sum + n,
-    0,
-  );
+  const expectedDev = Object.values(supply.devDeck).reduce((sum, n) => sum + n, 0);
   if (devTotal !== expectedDev) {
     problems.push({
       rule: "dev-card-conservation",

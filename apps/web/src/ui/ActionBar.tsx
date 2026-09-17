@@ -81,9 +81,49 @@ export function ActionBar(props: ActionBarProps): React.JSX.Element | null {
     case "main":
       return <MainControls {...props} />;
 
+    case "specialBuild":
+      return <SpecialBuildControls {...props} />;
+
     default:
       return null;
   }
+}
+
+/**
+ * The 5–6 player Special Building window: build and buy, nothing else.
+ *
+ * No trade of any kind and no development card may be played, so those controls
+ * are absent rather than disabled — the rules do not allow them at all here
+ * (ADR 0006).
+ */
+function SpecialBuildControls({
+  view,
+  mode,
+  onMode,
+  onAction,
+}: ActionBarProps): React.JSX.Element {
+  const pass = view.legalMoves.find((m) => m.t === "passSpecialBuild");
+
+  return (
+    <div className="flex flex-col gap-3.5">
+      <Hint>
+        Your building window, between turns. You may build and buy cards, but
+        not trade or play a development card.
+      </Hint>
+
+      <BuildGroup view={view} mode={mode} onMode={onMode} onAction={onAction} />
+
+      <Button
+        intent="primary"
+        data-action="pass-special-build"
+        onClick={() => {
+          if (pass !== undefined) onAction(pass);
+        }}
+      >
+        Done building
+      </Button>
+    </div>
+  );
 }
 
 function Hint({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
@@ -150,11 +190,51 @@ function MainControls({
   onAction,
 }: ActionBarProps): React.JSX.Element {
   const moves = view.legalMoves;
-  const can = (t: Action["t"]): boolean => moves.some((m) => m.t === t);
   const find = (t: Action["t"]): Action | undefined => moves.find((m) => m.t === t);
 
   return (
     <div className="flex flex-col gap-3.5">
+      <BuildGroup view={view} mode={mode} onMode={onMode} onAction={onAction} />
+
+      {mode !== "none" && (
+        <p className="rounded-[10px] border border-gold/25 bg-gold/8 px-2.5 py-2 text-[12px] text-gold">
+          Choose a glowing spot on the board, or from the list below. Press{" "}
+          <Key>Esc</Key> to cancel.
+        </p>
+      )}
+
+      <DevCardControls view={view} onAction={onAction} />
+      <BankTrade view={view} onAction={onAction} />
+      <OfferTrade view={view} onAction={onAction} />
+
+      <Button
+        intent="primary"
+        data-action="end-turn"
+        hint={<Key>E</Key>}
+        onClick={() => {
+          const action = find("endTurn");
+          if (action !== undefined) onAction(action);
+        }}
+      >
+        End turn
+      </Button>
+    </div>
+  );
+}
+
+/** The four things you can spend on, with their costs. */
+function BuildGroup({
+  view,
+  mode,
+  onMode,
+  onAction,
+}: ActionBarProps): React.JSX.Element {
+  const moves = view.legalMoves;
+  const can = (t: Action["t"]): boolean => moves.some((m) => m.t === t);
+  const find = (t: Action["t"]): Action | undefined => moves.find((m) => m.t === t);
+
+  return (
+    <>
       <Group label="Build">
         <Button
           data-action="build-road"
@@ -214,30 +294,7 @@ function MainControls({
           Development card
         </Button>
       </Group>
-
-      {mode !== "none" && (
-        <p className="rounded-[10px] border border-gold/25 bg-gold/8 px-2.5 py-2 text-[12px] text-gold">
-          Choose a glowing spot on the board, or from the list below. Press{" "}
-          <Key>Esc</Key> to cancel.
-        </p>
-      )}
-
-      <DevCardControls view={view} onAction={onAction} />
-      <BankTrade view={view} onAction={onAction} />
-      <OfferTrade view={view} onAction={onAction} />
-
-      <Button
-        intent="primary"
-        data-action="end-turn"
-        hint={<Key>E</Key>}
-        onClick={() => {
-          const action = find("endTurn");
-          if (action !== undefined) onAction(action);
-        }}
-      >
-        End turn
-      </Button>
-    </div>
+    </>
   );
 }
 

@@ -147,6 +147,12 @@ export type GameEvent =
       readonly player: PlayerId;
       readonly resources: ResourceCounts;
     }
+  | {
+      readonly e: "specialBuildStarted";
+      /** Seats offered a window, in the order they get one. */
+      readonly players: readonly PlayerId[];
+    }
+  | { readonly e: "specialBuildPassed"; readonly player: PlayerId }
   | { readonly e: "gameEnded"; readonly winner: PlayerId; readonly points: number };
 
 export type EventKind = GameEvent["e"];

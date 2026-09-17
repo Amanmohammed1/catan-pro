@@ -80,7 +80,11 @@ export type Action =
       readonly player: PlayerId;
       readonly with: PlayerId;
     }
-  | { readonly t: "cancelTrade"; readonly player: PlayerId };
+  | { readonly t: "cancelTrade"; readonly player: PlayerId }
+
+  // ---- 5–6 player extension (ADR 0006) ------------------------------------
+  /** Give up the rest of your Special Building window. */
+  | { readonly t: "passSpecialBuild"; readonly player: PlayerId };
 
 export type ActionKind = Action["t"];
 

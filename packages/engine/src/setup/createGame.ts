@@ -10,12 +10,12 @@
  */
 
 import { buildBoardGraph } from "../geometry/buildBoardGraph.js";
+import { BASE_SUPPLY, resolveModules, supplyFor, type Supply } from "../modules/index.js";
 import { seedRng, shuffle, type RngState } from "../rng/sfc32.js";
 import type { Scenario } from "../scenario/types.js";
 import type { TileId } from "../geometry/ids.js";
 import {
   DEFAULT_CONFIG,
-  DEV_DECK_COMPOSITION,
   emptyResources,
   type DevCardKind,
   type GameConfig,
@@ -26,8 +26,14 @@ import {
 } from "../state/types.js";
 import { RESOURCE_KINDS } from "../state/types.js";
 
-/** Rules p.2: 95 resource cards, 19 of each of the five types. */
-export const BANK_PER_RESOURCE = 19;
+/**
+ * Rules p.2: 95 resource cards, 19 of each of the five types.
+ *
+ * The base game's figure. A scenario that loads an expansion module can bring a
+ * bigger bank — the 5–6 extension adds five of each (5–6 rules 2022 p.4) — so
+ * the live figure is `supplyFor(modules).bankPerResource`, not this constant.
+ */
+export const BANK_PER_RESOURCE = BASE_SUPPLY.bankPerResource;
 
 /**
  * Seat colours: red, blue, orange, white, green, purple. Presentation data the
@@ -49,16 +55,22 @@ export interface CreateGameOptions {
   readonly config?: Partial<GameConfig>;
 }
 
-function fullBank(): ResourceCounts {
+function fullBank(supply: Supply): ResourceCounts {
   const bank = emptyResources();
-  for (const kind of RESOURCE_KINDS) bank[kind] = BANK_PER_RESOURCE;
+  for (const kind of RESOURCE_KINDS) bank[kind] = supply.bankPerResource;
   return bank;
 }
 
-/** The 25-card development deck, shuffled. Rules p.2. */
-export function buildDevDeck(rng: RngState): readonly [DevCardKind[], RngState] {
+/**
+ * The development deck, shuffled. Rules p.2 for the base game's 25 cards; the
+ * loaded modules decide the real composition.
+ */
+export function buildDevDeck(
+  rng: RngState,
+  supply: Supply = BASE_SUPPLY,
+): readonly [DevCardKind[], RngState] {
   const deck: DevCardKind[] = [];
-  for (const [kind, count] of Object.entries(DEV_DECK_COMPOSITION)) {
+  for (const [kind, count] of Object.entries(supply.devDeck)) {
     for (let i = 0; i < count; i++) deck.push(kind as DevCardKind);
   }
   const [shuffled, next] = shuffle(rng, deck);
@@ -108,8 +120,11 @@ export function createGame(options: CreateGameOptions): GameState {
     );
   }
 
+  const modules = resolveModules(scenario.modules);
+  const supply = supplyFor(modules);
+
   const { board, rng: afterBoard } = buildBoardGraph(scenario, seedRng(seed));
-  const [devDeck, afterDeck] = buildDevDeck(afterBoard);
+  const [devDeck, afterDeck] = buildDevDeck(afterBoard, supply);
 
   const players = playerNames.map((name, index) => makePlayer(index, name, scenario));
 
@@ -117,6 +132,7 @@ export function createGame(options: CreateGameOptions): GameState {
 
   const config: GameConfig = {
     ...DEFAULT_CONFIG,
+    modules: scenario.modules,
     victoryPoints: scenario.victoryPoints,
     ...options.config,
   };
@@ -127,7 +143,7 @@ export function createGame(options: CreateGameOptions): GameState {
     config,
     rng: afterDeck,
     players,
-    bank: fullBank(),
+    bank: fullBank(supply),
     devDeck,
     buildings: {},
     roads: {},

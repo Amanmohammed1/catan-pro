@@ -81,6 +81,21 @@ export type Phase =
       readonly remaining: 1 | 2;
       readonly returnTo: "roll" | "main";
     }
+  /**
+   * The Special Building Phase of the 5–6 player game.
+   *
+   * After a turn ends, every other player in clockwise order gets one window in
+   * which they may build and buy development cards — but not trade, and not
+   * play a development card. Provided by the `ext56` rule module; a base game
+   * never enters this phase. See ADR 0006.
+   */
+  | {
+      readonly k: "specialBuild";
+      /** Seats still owed a window, in clockwise order. The first is acting. */
+      readonly queue: readonly PlayerId[];
+      /** Whose turn begins once the queue empties. */
+      readonly nextPlayer: PlayerId;
+    }
   | { readonly k: "gameOver"; readonly winner: PlayerId };
 
 export type PhaseKind = Phase["k"];

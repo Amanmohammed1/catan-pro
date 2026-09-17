@@ -297,7 +297,12 @@ export class GameServer {
     session: Session,
     message: Extract<ClientMessage, { t: "createRoom" }>,
   ): void {
-    const scenarioId = message.scenarioId ?? "classic-3-4";
+    // Three or four players share the classic island; five or six need the
+    // larger board, which loads the 5–6 rule module with it (ADR 0006).
+    const seats = message.playerCount;
+    const scenarioId =
+      message.scenarioId ??
+      (seats !== undefined && seats > 4 ? "classic-5-6" : "classic-3-4");
     let scenario;
     try {
       scenario = loadScenario(scenarioId);

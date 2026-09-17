@@ -97,6 +97,10 @@ export function describeEvent(event: GameEvent, names: readonly string[]): strin
       return `${name(event.player)} placed a settlement`;
     case "setupResourcesGranted":
       return `${name(event.player)} collected starting resources`;
+    case "specialBuildStarted":
+      return `Special building: ${event.players.map(name).join(", ")}`;
+    case "specialBuildPassed":
+      return `${name(event.player)} finished building`;
     case "gameEnded":
       return `${name(event.winner)} wins with ${String(event.points)} points!`;
     default:

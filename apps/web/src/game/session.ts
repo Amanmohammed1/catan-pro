@@ -105,6 +105,8 @@ export function describePrompt(view: WireView, you: PlayerId): string {
       return "Choose someone to rob";
     case "main":
       return "Trade and build";
+    case "specialBuild":
+      return "Special building — build or buy";
     case "roadBuilding":
       return "Place your free roads";
     case "tradeOffer":

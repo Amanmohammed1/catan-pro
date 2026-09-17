@@ -25,6 +25,7 @@ import {
   canPlaceSettlement,
 } from "../queries/placement.js";
 import { canPlayDevCard, discardCount } from "../queries/legalMoves.js";
+import { resolveModules, turnHandoff } from "../modules/index.js";
 import { nextInt } from "../rng/sfc32.js";
 import {
   applyProduction,
@@ -180,6 +181,29 @@ function enterSteal(
 /** Return to the phase the robber interrupted. */
 function resumeAfterRobber(state: GameState, returnTo: "roll" | "main"): Phase {
   return returnTo === "roll" ? { k: "roll" } : { k: "main" };
+}
+
+/**
+ * Why this player may not build or buy right now, or null if they may.
+ *
+ * Two ways in: it is your turn and you are past the roll, or you hold the open
+ * Special Building window of a 5–6 player game (ADR 0006). Trading and playing
+ * development cards check the phase themselves and so stay shut out of a
+ * window, which is the point of it.
+ */
+function whyNotBuilding(
+  state: GameState,
+  player: PlayerId,
+  verb: "build" | "buy",
+): string | null {
+  const phase = state.phase;
+  if (phase.k === "main") {
+    return state.currentPlayer === player ? null : "Not your turn.";
+  }
+  if (phase.k === "specialBuild") {
+    return phase.queue[0] === player ? null : "Not your building window.";
+  }
+  return `You cannot ${verb} right now.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -510,11 +534,13 @@ export function reduce(state: GameState, action: Action): ReduceResult {
     // ---- building, p.4-5 --------------------------------------------------
     case "buildRoad": {
       const isFree = phase.k === "roadBuilding";
-      if (phase.k !== "main" && !isFree) {
-        return reject(action, "You cannot build right now.");
-      }
-      if (state.currentPlayer !== action.player) {
-        return reject(action, "Not your turn.");
+      if (isFree) {
+        if (state.currentPlayer !== action.player) {
+          return reject(action, "Not your turn.");
+        }
+      } else {
+        const refusal = whyNotBuilding(state, action.player, "build");
+        if (refusal !== null) return reject(action, refusal);
       }
       if (!canPlaceRoad(state, action.player, action.edge, { setup: false })) {
         return reject(action, "Illegal road placement.");
@@ -562,10 +588,8 @@ export function reduce(state: GameState, action: Action): ReduceResult {
     }
 
     case "buildSettlement": {
-      if (phase.k !== "main") return reject(action, "You cannot build right now.");
-      if (state.currentPlayer !== action.player) {
-        return reject(action, "Not your turn.");
-      }
+      const refusal = whyNotBuilding(state, action.player, "build");
+      if (refusal !== null) return reject(action, refusal);
       if (!canPlaceSettlement(state, action.player, action.node, { setup: false })) {
         return reject(action, "Illegal settlement placement.");
       }
@@ -602,10 +626,8 @@ export function reduce(state: GameState, action: Action): ReduceResult {
     }
 
     case "buildCity": {
-      if (phase.k !== "main") return reject(action, "You cannot build right now.");
-      if (state.currentPlayer !== action.player) {
-        return reject(action, "Not your turn.");
-      }
+      const refusal = whyNotBuilding(state, action.player, "build");
+      if (refusal !== null) return reject(action, refusal);
       if (!canPlaceCity(state, action.player, action.node)) {
         return reject(action, "You can only upgrade your own settlement.");
       }
@@ -642,10 +664,8 @@ export function reduce(state: GameState, action: Action): ReduceResult {
     }
 
     case "buyDevCard": {
-      if (phase.k !== "main") return reject(action, "You cannot buy right now.");
-      if (state.currentPlayer !== action.player) {
-        return reject(action, "Not your turn.");
-      }
+      const refusal = whyNotBuilding(state, action.player, "buy");
+      if (refusal !== null) return reject(action, refusal);
       if (state.devDeck.length === 0) {
         return reject(action, "The development card deck is empty.");
       }
@@ -1093,11 +1113,62 @@ export function reduce(state: GameState, action: Action): ReduceResult {
         return reject(action, "Not your turn.");
       }
 
+      // A module may interpose a phase between turns. The 5–6 extension puts
+      // the Special Building Phase here; the base game puts nothing.
+      const nextPlayer = (state.currentPlayer + 1) % state.players.length;
+      const handoff = turnHandoff(
+        resolveModules(state.config.modules),
+        state,
+        nextPlayer,
+      );
+      if (handoff !== null) {
+        return {
+          ok: true,
+          state: { ...state, phase: handoff.phase },
+          events: handoff.events,
+        };
+      }
+
       const next = beginNextTurn(state);
       return {
         ok: true,
         state: next,
         events: [{ e: "turnStarted", player: next.currentPlayer, turn: next.turn }],
+      };
+    }
+
+    // ---- the 5–6 Special Building Phase, ADR 0006 --------------------------
+    case "passSpecialBuild": {
+      if (phase.k !== "specialBuild") {
+        return reject(action, "No building window is open.");
+      }
+      if (phase.queue[0] !== action.player) {
+        return reject(action, "Not your building window.");
+      }
+
+      const rest = phase.queue.slice(1);
+      const passed: GameEvent = { e: "specialBuildPassed", player: action.player };
+
+      if (rest.length > 0) {
+        return {
+          ok: true,
+          state: {
+            ...state,
+            phase: { k: "specialBuild", queue: rest, nextPlayer: phase.nextPlayer },
+          },
+          events: [passed],
+        };
+      }
+
+      // The last window closes; the next player's turn begins.
+      const resumed = beginNextTurn(state);
+      return {
+        ok: true,
+        state: resumed,
+        events: [
+          passed,
+          { e: "turnStarted", player: resumed.currentPlayer, turn: resumed.turn },
+        ],
       };
     }
 
