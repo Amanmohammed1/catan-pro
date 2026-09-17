@@ -48,6 +48,8 @@ export interface BoardCanvasProps {
   readonly onAction: (action: Action) => void;
   readonly youColor: string;
   readonly showStats?: boolean;
+  /** Hexes that just paid out; flashed briefly. Driven by the event log. */
+  readonly producing?: ReadonlySet<TileId> | undefined;
 }
 
 export function BoardCanvas({
@@ -63,6 +65,7 @@ export function BoardCanvas({
   onAction,
   youColor,
   showStats = false,
+  producing,
 }: BoardCanvasProps): React.JSX.Element {
   const controls = useRef<OrbitHandle>(null);
   const [stats, setStats] = useState<FrameStats | null>(null);
@@ -102,6 +105,7 @@ export function BoardCanvas({
           <Tiles
             board={board}
             highlighted={tileKeys}
+            producing={producing}
             onPick={(tile) => {
               const action = tileTargets.get(tile);
               if (action !== undefined) onAction(action);

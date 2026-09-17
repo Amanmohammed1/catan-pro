@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   totalResources,
   type Action,
   type EdgeId,
+  type GameEvent,
   type NodeId,
   type TileId,
 } from "@hexport/engine";
@@ -20,11 +21,55 @@ import { PlayerStrip } from "../ui/PlayerStrip.js";
 import { Wordmark } from "../ui/Wordmark.js";
 import { useUi } from "../store/ui.js";
 import {
+  play,
+  preloadCommon,
+  setSoundEnabled,
+  setSoundVolume,
+  unlockAudio,
+  type SoundName,
+} from "../audio/sounds.js";
+import { latestCue, useEventCues, type Cue } from "./useEventCues.js";
+import {
   describePrompt,
   playerNames,
   seatColors,
   type GameSession,
 } from "./session.js";
+
+/**
+ * What an event sounds like.
+ *
+ * Only events worth hearing get a clip: production and building, the dice, a
+ * theft, a turn change, a win. Everything else is silent, because a sound for
+ * every log line is noise rather than feedback.
+ */
+function soundFor(event: GameEvent): SoundName | null {
+  switch (event.e) {
+    case "diceRolled":
+      return "dice";
+    case "builtRoad":
+    case "builtSettlement":
+      return "build";
+    case "builtCity":
+      return "city";
+    case "devCardBought":
+    case "devCardPlayed":
+      return "card";
+    case "bankTraded":
+    case "tradeCompleted":
+      return "trade";
+    case "cardStolen":
+    case "monopolyResolved":
+      return "steal";
+    case "turnStarted":
+    case "specialBuildStarted":
+      return "turn";
+    case "gameEnded":
+      return "victory";
+    default:
+      return null;
+  }
+}
 
 /**
  * The game screen.
@@ -53,6 +98,22 @@ export function GameScreen({
   const phase = view.phase;
   const yourTurn = view.currentPlayer === view.you;
   const waiting = moves.length > 0;
+
+  // Everything that moves or makes a noise comes off the event stream, never
+  // off local state (CLAUDE.md golden rule 6).
+  const cues = useEventCues(log);
+  useSound(cues);
+
+  /** Hexes that just paid out, flashed on the board for a moment. */
+  const producing = useMemo(() => {
+    const roll = latestCue(cues, "diceRolled");
+    if (roll === null || roll.total === 7) return undefined;
+    const out = new Set<TileId>();
+    for (const [id, tile] of Object.entries(board.tiles)) {
+      if (tile.number === roll.total && id !== view.robber) out.add(id);
+    }
+    return out;
+  }, [cues, board, view.robber]);
 
   // A build mode only makes sense inside the phase that offered it.
   useEffect(() => {
@@ -152,6 +213,7 @@ export function GameScreen({
             }}
             youColor={youColor}
             showStats={showStats}
+            producing={producing}
           />
 
           <PromptBanner
@@ -232,6 +294,48 @@ export function GameScreen({
       )}
     </div>
   );
+}
+
+/**
+ * Play a clip for each new cue, once.
+ *
+ * Browsers refuse to start audio before a gesture, so the first click or key
+ * unlocks it; anything that happened before then is silent rather than queued.
+ */
+function useSound(cues: readonly Cue[]): void {
+  const sound = useUi((s) => s.sound);
+  const volume = useUi((s) => s.volume);
+  const played = useRef(0);
+
+  useEffect(() => {
+    setSoundEnabled(sound);
+  }, [sound]);
+
+  useEffect(() => {
+    setSoundVolume(volume);
+  }, [volume]);
+
+  useEffect(() => {
+    const unlock = (): void => {
+      unlockAudio();
+      preloadCommon();
+    };
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
+
+  useEffect(() => {
+    for (const cue of cues) {
+      if (cue.id < played.current) continue;
+      played.current = cue.id + 1;
+      const clip = soundFor(cue.event);
+      if (clip !== null) play(clip);
+    }
+  }, [cues]);
 }
 
 /**
@@ -334,6 +438,8 @@ function TopBar({
   const toggleStats = useUi((s) => s.toggleStats);
   const effects = useUi((s) => s.effects);
   const setEffects = useUi((s) => s.setEffects);
+  const sound = useUi((s) => s.sound);
+  const toggleSound = useUi((s) => s.toggleSound);
   const current = view.players[view.currentPlayer];
 
   return (
@@ -361,6 +467,9 @@ function TopBar({
       {session.deadline != null && waiting && <Countdown deadline={session.deadline} />}
 
       <div className="ml-auto flex items-center gap-1">
+        <Toggle pressed={sound} onClick={toggleSound} title="Sound effects">
+          Sound
+        </Toggle>
         <Toggle pressed={listView} onClick={toggleListView} title="List every legal move (L)">
           List
         </Toggle>

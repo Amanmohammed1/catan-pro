@@ -1,0 +1,11 @@
+{
+  "name": "@hexport/assets",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CC0 and original media. No build step: files are imported by URL and bundled by the client.",
+  "exports": {
+    "./audio/*": "./audio/*"
+  },
+  "files": ["audio"]
+}
