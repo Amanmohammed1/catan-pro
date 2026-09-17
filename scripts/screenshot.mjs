@@ -32,6 +32,7 @@ for (let i = 2; i < process.argv.length; i += 2) {
 }
 const PLAYERS = Number(args.get("players") ?? 4);
 const SEED = args.get("seed") ?? "shots";
+const SCENARIO = args.get("scenario");
 const PORT = Number(args.get("port") ?? 5199);
 const CDP_PORT = PORT + 4000;
 const BASE = args.get("url") ?? `http://localhost:${String(PORT)}/`;
@@ -139,14 +140,21 @@ async function main() {
       ),
     );
 
-    const list = await (await waitFor(`http://127.0.0.1:${String(CDP_PORT)}/json/list`)).json();
+    const list = await (
+      await waitFor(`http://127.0.0.1:${String(CDP_PORT)}/json/list`)
+    ).json();
     const page = list.find((target) => target.type === "page");
     const problems = [];
     const cdp = await connect(page.webSocketDebuggerUrl, (event) => {
       if (event.method === "Runtime.exceptionThrown") {
-        problems.push(event.params.exceptionDetails.exception?.description ?? "exception");
+        problems.push(
+          event.params.exceptionDetails.exception?.description ?? "exception",
+        );
       }
-      if (event.method === "Runtime.consoleAPICalled" && event.params.type === "error") {
+      if (
+        event.method === "Runtime.consoleAPICalled" &&
+        event.params.type === "error"
+      ) {
         problems.push(event.params.args.map((a) => a.value ?? a.description).join(" "));
       }
     });
@@ -179,6 +187,10 @@ async function main() {
       game.searchParams.set("hotseat", "1");
       game.searchParams.set("seed", SEED);
       game.searchParams.set("players", String(PLAYERS));
+      // `pnpm shots --scenario new-shores-4` photographs a Seafarers board.
+      // Without it there is no way to look at one, and looking is the whole
+      // point of this script.
+      if (SCENARIO !== undefined) game.searchParams.set("scenario", SCENARIO);
       // A software renderer trips the low-power fallback; show the real look.
       game.searchParams.set("fx", "1");
       await cdp.send("Page.navigate", { url: game.href });
@@ -187,9 +199,7 @@ async function main() {
 
       // Two rounds of settlement + road for every seat, through the DOM route.
       for (let i = 0; i < PLAYERS * 4; i++) {
-        await evaluate(
-          `document.querySelector('button[data-placement]')?.click()`,
-        );
+        await evaluate(`document.querySelector('button[data-placement]')?.click()`);
         await sleep(450);
       }
       await sleep(2500);

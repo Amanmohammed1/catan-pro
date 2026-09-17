@@ -33,7 +33,13 @@ export interface LogEntry {
 
 type StoreAction =
   | { readonly t: "dispatch"; readonly action: Action }
-  | { readonly t: "reset"; readonly seed: string; readonly players: number }
+  | {
+      readonly t: "reset";
+      readonly seed: string;
+      readonly players: number;
+      /** Carried through, or a rematch on a Seafarers board deals a classic one. */
+      readonly scenarioId?: string | undefined;
+    }
   | { readonly t: "dismissError" };
 
 export interface NewGameOptions {
@@ -80,7 +86,11 @@ function storeReducer(store: GameStore, action: StoreAction): GameStore {
     }
 
     case "reset":
-      return startGame({ seed: action.seed, players: action.players });
+      return startGame({
+        seed: action.seed,
+        players: action.players,
+        ...(action.scenarioId === undefined ? {} : { scenarioId: action.scenarioId }),
+      });
 
     case "dismissError":
       return { ...store, error: null };
@@ -99,8 +109,8 @@ export function useGame(initial: NewGameOptions) {
     send({ t: "dispatch", action });
   }, []);
 
-  const reset = useCallback((seed: string, players: number) => {
-    send({ t: "reset", seed, players });
+  const reset = useCallback((seed: string, players: number, scenarioId?: string) => {
+    send({ t: "reset", seed, players, scenarioId });
   }, []);
 
   const dismissError = useCallback(() => {

@@ -110,6 +110,12 @@ export function describePrompt(view: WireView, you: PlayerId): string {
       return "Choose someone to rob";
     case "main":
       return "Trade and build";
+    case "gainGold":
+      // Seafarers p.2. The turn stops here until the cards are chosen, and the
+      // player owed them is often not the player whose turn it is.
+      return view.phase.player === you
+        ? `Gold field — choose ${String(view.phase.remaining)} card${view.phase.remaining === 1 ? "" : "s"}`
+        : "Waiting on a gold field";
     case "specialBuild":
       return "Special building — build or buy";
     case "roadBuilding":

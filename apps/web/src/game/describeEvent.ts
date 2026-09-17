@@ -103,6 +103,22 @@ export function describeEvent(event: GameEvent, names: readonly string[]): strin
       return `Special building: ${event.players.map(name).join(", ")}`;
     case "specialBuildPassed":
       return `${name(event.player)} finished building`;
+    case "builtShip":
+      return `${name(event.player)} built a ship${event.free ? " (free)" : ""}`;
+    case "shipMoved":
+      return `${name(event.player)} moved a ship`;
+    case "goldOwed": {
+      const parts = Object.entries(event.owed)
+        .filter(([, n]) => n > 0)
+        .map(([player, n]) => `${name(Number(player))}: ${String(n)}`);
+      return parts.length === 0
+        ? "Gold fields produced nothing"
+        : `Gold fields — cards to choose (${parts.join("; ")})`;
+    }
+    case "goldTaken":
+      return `${name(event.player)} took ${event.resource} from a gold field`;
+    case "pirateMoved":
+      return `${name(event.player)} moved the pirate`;
     case "gameEnded":
       return `${name(event.winner)} wins with ${String(event.points)} points!`;
     default:

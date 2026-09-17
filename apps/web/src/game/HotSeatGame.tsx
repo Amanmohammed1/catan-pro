@@ -16,11 +16,18 @@ import type { GameSession } from "./session.js";
 export function HotSeatGame({
   seed,
   players,
+  scenarioId,
 }: {
   readonly seed: string;
   readonly players: number;
+  /** Defaults to the classic island, or the 5–6 board for five or six seats. */
+  readonly scenarioId?: string | undefined;
 }): React.JSX.Element {
-  const game = useGame({ seed, players });
+  const game = useGame({
+    seed,
+    players,
+    ...(scenarioId === undefined ? {} : { scenarioId }),
+  });
 
   const session: GameSession = useMemo(() => {
     const seat: PlayerId = game.activePlayer;
@@ -42,7 +49,7 @@ export function HotSeatGame({
       // A new board for the same people. The seed moves on, so "play again"
       // does not deal the same island twice.
       onRematch: () => {
-        game.reset(`${seed}-${String(Date.now())}`, players);
+        game.reset(`${seed}-${String(Date.now())}`, players, scenarioId);
       },
     };
   }, [
@@ -55,6 +62,7 @@ export function HotSeatGame({
     game.reset,
     seed,
     players,
+    scenarioId,
   ]);
 
   return <GameScreen session={session} />;

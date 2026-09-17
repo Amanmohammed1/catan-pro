@@ -165,6 +165,21 @@ export function GameScreen({
         case "moveRobber":
           tiles.set(move.tile, move);
           break;
+        case "movePirate":
+          // Offered in the same phase as the robber, on the water instead of
+          // the land (Seafarers p.2), so both sets of hexes light up at once.
+          tiles.set(move.tile, move);
+          break;
+        case "buildShip":
+          // A ship arms off the road mode: both are the "extend my network"
+          // move, and on a coastal edge only one of the two is ever legal.
+          if (mode === "road") edges.set(move.edge, move);
+          break;
+        // `moveShip` is deliberately absent. It names two edges, so clicking
+        // one cannot express it — it wants a pick-up-then-put-down gesture of
+        // its own, and half of one would be worse than none. It stays
+        // reachable from the action list, which is what keeps every legal move
+        // available from the DOM (CLAUDE.md, Conventions).
         default:
           break;
       }
@@ -365,7 +380,8 @@ function useShortcuts({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey)
+        return;
       const target = event.target;
       if (
         target instanceof HTMLElement &&
@@ -476,7 +492,11 @@ function TopBar({
         <Toggle pressed={sound} onClick={toggleSound} title="Sound effects">
           Sound
         </Toggle>
-        <Toggle pressed={listView} onClick={toggleListView} title="List every legal move (L)">
+        <Toggle
+          pressed={listView}
+          onClick={toggleListView}
+          title="List every legal move (L)"
+        >
           List
         </Toggle>
         <Toggle
@@ -488,7 +508,11 @@ function TopBar({
         >
           Effects
         </Toggle>
-        <Toggle pressed={showStats} onClick={toggleStats} title="Frame rate and draw calls">
+        <Toggle
+          pressed={showStats}
+          onClick={toggleStats}
+          title="Frame rate and draw calls"
+        >
           Stats
         </Toggle>
       </div>

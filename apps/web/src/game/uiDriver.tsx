@@ -17,12 +17,13 @@ import { HotSeatGame } from "./HotSeatGame.js";
 export function mountGame(
   seed: string,
   players: number,
+  scenarioId?: string,
 ): { el: HTMLDivElement; root: Root } {
   const el = document.createElement("div");
   document.body.appendChild(el);
   const root = createRoot(el);
   act(() => {
-    root.render(<HotSeatGame seed={seed} players={players} />);
+    root.render(<HotSeatGame seed={seed} players={players} scenarioId={scenarioId} />);
   });
   return { el, root };
 }
@@ -145,6 +146,19 @@ export function drive(el: HTMLElement): boolean {
   if (here === "steal") {
     if (take("steal")) return true;
     if (take("continue")) return true;
+  }
+
+  if (here === "gainGold") {
+    // Seafarers p.2. The turn cannot move on until these are taken, so a
+    // missing control here is a hang rather than a cosmetic gap — which is
+    // exactly what this driver returning false is meant to report.
+    const pick = panel(el).querySelector<HTMLButtonElement>(
+      'button[data-action^="take-gold-"]',
+    );
+    if (pick !== null && !pick.disabled) {
+      click(pick);
+      return true;
+    }
   }
 
   if (here === "roadBuilding") {

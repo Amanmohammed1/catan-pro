@@ -82,12 +82,59 @@ export function ActionBar(props: ActionBarProps): React.JSX.Element | null {
     case "main":
       return <MainControls {...props} />;
 
+    case "gainGold":
+      return <GoldControls {...props} />;
+
     case "specialBuild":
       return <SpecialBuildControls {...props} />;
 
     default:
       return null;
   }
+}
+
+/**
+ * A gold field's card, chosen one at a time (Seafarers p.2).
+ *
+ * The turn is stopped until these are taken, so this cannot be left out: with
+ * no control and no prompt, a game on a board with gold simply stops. Note the
+ * player owed the cards is frequently not the player whose turn it is, since
+ * production pays everyone.
+ *
+ * Only resources the bank can actually pay are offered, and that comes from
+ * `legalMoves` rather than from any judgement here (golden rule 3).
+ */
+function GoldControls({ view, onAction }: ActionBarProps): React.JSX.Element {
+  const picks = view.legalMoves.filter((m) => m.t === "takeGold");
+  const remaining = view.phase.k === "gainGold" ? view.phase.remaining : 0;
+
+  return (
+    <div className="flex flex-col gap-3.5">
+      <Hint>
+        A gold field paid out. Choose {remaining} card{remaining === 1 ? "" : "s"}
+        {picks.length < RESOURCE_KINDS.length ? " — the bank is out of the rest." : "."}
+      </Hint>
+
+      <div className="flex flex-wrap gap-2">
+        {picks.map((move) => {
+          if (move.t !== "takeGold") return null;
+          return (
+            <Button
+              key={move.resource}
+              intent="primary"
+              data-action={`take-gold-${move.resource}`}
+              onClick={() => {
+                onAction(move);
+              }}
+            >
+              <ResourceChip kind={move.resource} />
+              <span className="ml-1.5">{RESOURCE_NAME[move.resource]}</span>
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -108,8 +155,8 @@ function SpecialBuildControls({
   return (
     <div className="flex flex-col gap-3.5">
       <Hint>
-        Your building window, between turns. You may build and buy cards, but
-        not trade or play a development card.
+        Your building window, between turns. You may build and buy cards, but not trade
+        or play a development card.
       </Hint>
 
       <BuildGroup view={view} mode={mode} onMode={onMode} onAction={onAction} />
@@ -360,7 +407,11 @@ function DevCardControls({
                 >
                   <span className="flex items-center gap-1">
                     {move.resources.map((kind, i) => (
-                      <ResourceChip key={`${kind}${String(i)}`} kind={kind} className="h-4 w-4" />
+                      <ResourceChip
+                        key={`${kind}${String(i)}`}
+                        kind={kind}
+                        className="h-4 w-4"
+                      />
                     ))}
                     <span className="sr-only">{move.resources.join(" and ")}</span>
                   </span>
@@ -527,7 +578,11 @@ function StealControls({ view, onAction }: ActionBarProps): React.JSX.Element {
           hint={`${String(view.players[target]?.handSize ?? 0)} cards`}
         >
           <span className="flex items-center gap-2">
-            <Avatar seat={target} color={view.players[target]?.color ?? "#888"} size={22} />
+            <Avatar
+              seat={target}
+              color={view.players[target]?.color ?? "#888"}
+              size={22}
+            />
             {view.players[target]?.name}
           </span>
         </Button>
@@ -623,7 +678,9 @@ function Picker({
                 <ResourceChip kind={kind} className="h-4 w-4" />
                 {RESOURCE_NAME[kind]}
                 {ceiling !== undefined && (
-                  <span className="text-[10px] text-ink-700 tabular-nums">({held})</span>
+                  <span className="text-[10px] text-ink-700 tabular-nums">
+                    ({held})
+                  </span>
                 )}
               </span>
               <Stepper
