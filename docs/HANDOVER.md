@@ -66,6 +66,10 @@ See `docs/milestones/M4.md`. Animation and sound driven by the event stream,
 counter-offers with a click-to-build trade panel, a log that lights up the board
 when you hover a line, and rematch.
 
+Bots came with it, in two places at once: the lobby offers a bot count when you
+create a room (the server plays those seats), and `pnpm bots` opens a room from
+a terminal. Both use the same policy in `packages/bots`, so they cannot drift.
+
 **Not done:**
 
 - **Spectator mode.** `WireView.you` is a seat id that every panel reads;
@@ -283,7 +287,7 @@ pnpm bots --players 6 --bots 5
 
 ```bash
 pnpm verify        # lint, typecheck, both purity guards, both test lanes
-pnpm test          # fast lane, 513 tests, ~11s
+pnpm test          # fast lane, 519 tests, ~11s
 pnpm test:slow     # whole-game runs over real sockets, ~14s
 pnpm shots         # headless screenshots into .shots/ — then look at them
 pnpm shots --players 6
@@ -312,7 +316,7 @@ pnpm exec prettier --ignore-path /dev/null --write packages/scenarios/data
 ## 7. Current numbers
 
 ```
-fast lane     513 tests in 22 files, ~11s
+fast lane     519 tests in 22 files, ~11s
 slow lane       9 tests, ~14s
 fuzz          classic  10,000 games, 10.19M actions, 0 stalled, ~114s
               5 players 10,000 games, 19.48M actions, 0 stalled, ~214s
@@ -321,3 +325,45 @@ fuzz          classic  10,000 games, 10.19M actions, 0 stalled, ~114s
 board         classic 19 tiles / 54 nodes / 72 edges / 9 harbours
               5-6     30 tiles / 80 nodes / 109 edges / 11 harbours
 ```
+
+---
+
+## 8. Where to pick up
+
+Branches, oldest first. Each was cut from the one above it, and none is merged:
+
+```
+main            end of M2
+m3-3d-client      the two visual bugs + pnpm shots; the warm-tabletop redesign
+m5-five-six       rule modules, the 30-hex board, Special Building Phase
+m4-polish         animation + sound, counter-offers, log highlighting,
+                  rematch, and bots (lobby + pnpm bots)   <- newest
+```
+
+**Decisions waiting on the owner**
+
+- **Merging.** `main` is still at M2. The three branches are linear, so
+  fast-forwarding `main` to `m4-polish` is the whole job — but ask first.
+- **The 5–6 number discs.** No rulebook in `docs/rules/` prints which value is
+  on each lettered disc, so the game shuffles the printed composition instead
+  (ADR 0006). If the physical box is to hand, reading off A→Zc turns that into a
+  data-only change: swap `tokens` for `sequence` and the mode for `path`.
+
+**The obvious next pieces of work**
+
+1. **Spectator mode** (the one M4 item not done). `WireView.you` is a seat id
+   every panel reads; making it nullable is the whole job. The server half is
+   smaller: let a socket join a started room without a seat, and send it a view
+   redacted for nobody.
+2. **Measure the frame rate** on a low-powered machine. Never done. The meter is
+   in the bar (Stats) and `PerformanceMonitor` already drops effects on decline.
+3. **Rooms do not survive a server restart** — the M2 gap. `store.ts` and
+   `Match.replay` are the two pieces to wire together. Note that `tsx watch`
+   restarts on every save, so this bites during development too: a live room
+   disappears the moment you edit a server file.
+4. **M6, Seafarers.** The board format was built for it (ADR 0001, edge `kind`,
+   islands, hidden stacks) and `RuleModule` now exists (ADR 0005). The first
+   real test of whether that interface is right.
+
+**Before calling any visual work done:** run `pnpm shots` and look at the
+pictures. That is the check that was missing when the client shipped unreadable.
