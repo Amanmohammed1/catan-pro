@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { longestRoadFor, resolveLongestRoad } from "./longestRoad.js";
+import { longestRouteFor, resolveLongestRoad } from "./longestRoad.js";
 import { buildBoardGraph } from "../geometry/buildBoardGraph.js";
 import { seedRng } from "../rng/sfc32.js";
 import { edgeIdAt, nodeIdAt, type EdgeId, type NodeId } from "../geometry/ids.js";
 import type { Axial, DirectionIndex } from "../geometry/coords.js";
 import type { BoardGraph } from "../geometry/types.js";
-import type { Building, PlayerId } from "../state/types.js";
+import type { Building, PlayerId, Ship } from "../state/types.js";
 import type { Scenario, ScenarioCell } from "../scenario/types.js";
 
 /**
@@ -69,14 +69,44 @@ function ownedBy(edges: readonly EdgeId[], player: PlayerId = ME) {
   return roads;
 }
 
+/** Ships owned by one player. Built long ago, so nothing here is move-locked. */
+function shipsOwnedBy(edges: readonly EdgeId[], player: PlayerId = ME) {
+  const ships: Record<EdgeId, Ship> = {};
+  for (const edge of edges) ships[edge] = { player, builtOnTurn: 0 };
+  return ships;
+}
+
 function measure(
   edges: readonly EdgeId[],
   buildings: Record<NodeId, Building> = {},
   player: PlayerId = ME,
   extraRoads: Record<EdgeId, PlayerId> = {},
 ): number {
-  return longestRoadFor(
-    { board, roads: { ...ownedBy(edges, player), ...extraRoads }, buildings },
+  return longestRouteFor(
+    {
+      board,
+      roads: { ...ownedBy(edges, player), ...extraRoads },
+      ships: {},
+      buildings,
+    },
+    player,
+  );
+}
+
+/** Measure a mixed network: some edges carrying roads, some carrying ships. */
+function measureRoute(
+  roadEdges: readonly EdgeId[],
+  shipEdges: readonly EdgeId[],
+  buildings: Record<NodeId, Building> = {},
+  player: PlayerId = ME,
+): number {
+  return longestRouteFor(
+    {
+      board,
+      roads: ownedBy(roadEdges, player),
+      ships: shipsOwnedBy(shipEdges, player),
+      buildings,
+    },
     player,
   );
 }
@@ -360,16 +390,16 @@ describe("independence from other players", () => {
     const mine = simplePath(5);
     const theirs = ring([2, -2]).slice(0, 3);
     const roads = { ...ownedBy(mine.edges, ME), ...ownedBy(theirs, FOE) };
-    expect(longestRoadFor({ board, roads, buildings: {} }, ME)).toBe(5);
-    expect(longestRoadFor({ board, roads, buildings: {} }, FOE)).toBe(3);
-    expect(longestRoadFor({ board, roads, buildings: {} }, 2)).toBe(0);
+    expect(longestRouteFor({ board, roads, ships: {}, buildings: {} }, ME)).toBe(5);
+    expect(longestRouteFor({ board, roads, ships: {}, buildings: {} }, FOE)).toBe(3);
+    expect(longestRouteFor({ board, roads, ships: {}, buildings: {} }, 2)).toBe(0);
   });
 });
 
 describe("robustness", () => {
   it("ignores road entries for edges that are not on the board", () => {
     const roads: Record<EdgeId, PlayerId> = { "e|nonsense__alsononsense": ME };
-    expect(longestRoadFor({ board, roads, buildings: {} }, ME)).toBe(0);
+    expect(longestRouteFor({ board, roads, ships: {}, buildings: {} }, ME)).toBe(0);
   });
 
   it("handles a full 15-road network without blowing up", () => {
@@ -383,6 +413,70 @@ describe("robustness", () => {
     const { edges } = simplePath(7);
     const reversed = [...edges].reverse();
     expect(measure(edges)).toBe(measure(reversed));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Seafarers p.2: ships count too, but a road and a ship are one route only
+// where they meet at one of your own buildings.
+// ---------------------------------------------------------------------------
+
+describe("routes of roads and ships (Seafarers p.2)", () => {
+  it("counts a run of ships on its own", () => {
+    const { edges } = simplePath(4);
+    expect(measureRoute([], edges)).toBe(4);
+  });
+
+  it("does not join a road to a ship at a bare intersection", () => {
+    // Three roads then three ships, meeting at pathNodes[3] with nothing on it.
+    const { edges } = simplePath(6);
+    const roads = edges.slice(0, 3);
+    const ships = edges.slice(3);
+    expect(measureRoute(roads, ships)).toBe(3);
+  });
+
+  it("joins them at your own settlement", () => {
+    const { edges, nodes } = simplePath(6);
+    const join = nodes[3] as NodeId;
+    expect(
+      measureRoute(edges.slice(0, 3), edges.slice(3), {
+        [join]: settlement(ME),
+      }),
+    ).toBe(6);
+  });
+
+  it("joins them at your own city too", () => {
+    const { edges, nodes } = simplePath(6);
+    const join = nodes[3] as NodeId;
+    expect(
+      measureRoute(edges.slice(0, 3), edges.slice(3), {
+        [join]: city(ME),
+      }),
+    ).toBe(6);
+  });
+
+  it("does not join them at an opponent's building", () => {
+    const { edges, nodes } = simplePath(6);
+    const join = nodes[3] as NodeId;
+    // An opponent's building blocks the route outright, as it does for roads.
+    expect(
+      measureRoute(edges.slice(0, 3), edges.slice(3), {
+        [join]: settlement(FOE),
+      }),
+    ).toBe(3);
+  });
+
+  it("still counts same-kind steps at a bare intersection", () => {
+    // The join rule must not leak into an all-road or all-ship network: this is
+    // the guard that every base-game case above still measures what it did.
+    const { edges } = simplePath(6);
+    expect(measureRoute(edges, [])).toBe(6);
+    expect(measureRoute([], edges)).toBe(6);
+  });
+
+  it("takes the longer of a road arm and a ship arm when they cannot join", () => {
+    const { edges } = simplePath(7);
+    expect(measureRoute(edges.slice(0, 2), edges.slice(2))).toBe(5);
   });
 });
 

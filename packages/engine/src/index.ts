@@ -166,8 +166,8 @@ export {
 
 // ---- queries --------------------------------------------------------------
 export {
-  longestRoadFor,
-  longestRoadLengths,
+  longestRouteFor,
+  longestRouteLengths,
   resolveLongestRoad,
   type RoadNetworkInput,
 } from "./queries/longestRoad.js";

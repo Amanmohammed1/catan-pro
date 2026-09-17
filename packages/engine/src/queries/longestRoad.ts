@@ -27,39 +27,72 @@
 
 import type { BoardGraph } from "../geometry/types.js";
 import type { EdgeId, NodeId } from "../geometry/ids.js";
-import type { Building, PlayerId, SpecialCard } from "../state/types.js";
+import type { Building, PlayerId, Ship, SpecialCard } from "../state/types.js";
 
 export interface RoadNetworkInput {
   readonly board: BoardGraph;
   readonly roads: Readonly<Record<EdgeId, PlayerId>>;
+  /**
+   * Seafarers ships, which count toward the route (Seafarers p.2). Required
+   * rather than optional on purpose: a caller that forgot them would get a
+   * quietly wrong answer, and this is the measurement that decides who wins.
+   * An empty record is the base game's answer and says so explicitly.
+   */
+  readonly ships: Readonly<Record<EdgeId, Ship>>;
   readonly buildings: Readonly<Record<NodeId, Building>>;
 }
 
+/** What a player has on an edge, for the road/ship join rule. */
+type Carrier = "road" | "ship" | null;
+
 /**
- * Longest continuous road for one player.
+ * Longest continuous route for one player: roads, ships, or both.
  *
- * Returns 0 when the player has no roads.
+ * Base game (p.9): the longest trail of your own road segments, no segment
+ * counted twice, never passing *through* an intersection an opponent holds.
+ *
+ * Seafarers p.2 widens it: "The first player to have 5 continuous roads and/or
+ * ships in play receives the Longest Route tile... Roads and ships are only
+ * considered part of the same route if they connect to each other at one of
+ * your buildings."
+ *
+ * So the walk is unchanged except at one point: stepping from a road onto a
+ * ship, or the reverse, requires one of your own buildings at the intersection
+ * between them. Two roads, or two ships, join anywhere as before — which is why
+ * every base-game case still measures exactly what it used to.
+ *
+ * Returns 0 when the player has nothing on the board.
  */
-export function longestRoadFor(input: RoadNetworkInput, player: PlayerId): number {
-  const { board, roads, buildings } = input;
+export function longestRouteFor(input: RoadNetworkInput, player: PlayerId): number {
+  const { board, roads, ships, buildings } = input;
 
-  // Own roads, indexed by the nodes they touch.
+  // Own pieces, indexed by the nodes they touch.
   const incident = new Map<NodeId, EdgeId[]>();
-  let ownRoadCount = 0;
+  const carrier = new Map<EdgeId, Carrier>();
+  let ownCount = 0;
 
-  for (const [edgeId, owner] of Object.entries(roads)) {
-    if (owner !== player) continue;
+  const claim = (edgeId: EdgeId, kind: Exclude<Carrier, null>): void => {
     const edge = board.edges[edgeId];
-    if (edge === undefined) continue;
-    ownRoadCount++;
+    if (edge === undefined) return;
+    ownCount++;
+    carrier.set(edgeId, kind);
     for (const nodeId of edge.nodes) {
       const list = incident.get(nodeId);
       if (list === undefined) incident.set(nodeId, [edgeId]);
       else list.push(edgeId);
     }
+  };
+
+  for (const [edgeId, owner] of Object.entries(roads)) {
+    if (owner !== player) continue;
+    claim(edgeId, "road");
+  }
+  for (const [edgeId, ship] of Object.entries(ships)) {
+    if (ship.player !== player) continue;
+    claim(edgeId, "ship");
   }
 
-  if (ownRoadCount === 0) return 0;
+  if (ownCount === 0) return 0;
 
   /**
    * An intersection blocks the path when an opponent has built on it. Your own
@@ -71,10 +104,13 @@ export function longestRoadFor(input: RoadNetworkInput, player: PlayerId): numbe
     return building !== undefined && building.player !== player;
   };
 
+  /** Your own building here, which is what lets a road meet a ship (p.2). */
+  const ownBuilding = (nodeId: NodeId): boolean => buildings[nodeId]?.player === player;
+
   const used = new Set<EdgeId>();
   let best = 0;
 
-  const walk = (from: NodeId, length: number): void => {
+  const walk = (from: NodeId, length: number, arrivedOn: Carrier): void => {
     if (length > best) best = length;
 
     // Cannot continue out of an intersection an opponent holds. Arriving here
@@ -85,32 +121,40 @@ export function longestRoadFor(input: RoadNetworkInput, player: PlayerId): numbe
       if (used.has(edgeId)) continue;
       const edge = board.edges[edgeId];
       if (edge === undefined) continue;
-      const next = edge.nodes[0] === from ? edge.nodes[1] : edge.nodes[0];
+
+      // Seafarers p.2: a road and a ship are one route only where they meet at
+      // one of your own buildings. Same-kind steps are free, so the base game
+      // never reaches this test.
+      const next = carrier.get(edgeId) ?? null;
+      if (arrivedOn !== null && next !== arrivedOn && !ownBuilding(from)) continue;
+
+      const far = edge.nodes[0] === from ? edge.nodes[1] : edge.nodes[0];
 
       used.add(edgeId);
-      walk(next, length + 1);
+      walk(far, length + 1, next);
       used.delete(edgeId);
     }
   };
 
   // A run can start anywhere in the network, including on a node an opponent
-  // holds, so every endpoint is tried.
+  // holds, so every endpoint is tried. `null` as the arriving carrier means the
+  // first segment is free to be either kind.
   for (const nodeId of incident.keys()) {
-    walk(nodeId, 0);
-    if (best === ownRoadCount) break; // cannot do better than every road
+    walk(nodeId, 0, null);
+    if (best === ownCount) break; // cannot do better than every piece
   }
 
   return best;
 }
 
-/** Longest road length for every player, indexed by seat. */
-export function longestRoadLengths(
+/** Longest route length for every player, indexed by seat. */
+export function longestRouteLengths(
   input: RoadNetworkInput,
   playerCount: number,
 ): number[] {
   const out: number[] = [];
   for (let player = 0; player < playerCount; player++) {
-    out.push(longestRoadFor(input, player));
+    out.push(longestRouteFor(input, player));
   }
   return out;
 }

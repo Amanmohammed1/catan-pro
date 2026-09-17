@@ -5,7 +5,7 @@
  * "immediately" (p.4, p.8) rather than at any particular point in the turn.
  */
 
-import { longestRoadLengths, resolveLongestRoad } from "../queries/longestRoad.js";
+import { longestRouteLengths, resolveLongestRoad } from "../queries/longestRoad.js";
 import { resolveLargestArmy, victoryPoints } from "../queries/scores.js";
 import type { GameEvent } from "../events/types.js";
 import type { GameState } from "../state/types.js";
@@ -19,8 +19,13 @@ export interface Recomputed {
 export function recomputeSpecialCards(state: GameState): Recomputed {
   const events: GameEvent[] = [];
 
-  const lengths = longestRoadLengths(
-    { board: state.board, roads: state.roads, buildings: state.buildings },
+  const lengths = longestRouteLengths(
+    {
+      board: state.board,
+      roads: state.roads,
+      ships: state.ships,
+      buildings: state.buildings,
+    },
     state.players.length,
   );
   const longestRoad = resolveLongestRoad(
