@@ -179,6 +179,8 @@ async function main() {
       game.searchParams.set("hotseat", "1");
       game.searchParams.set("seed", SEED);
       game.searchParams.set("players", String(PLAYERS));
+      // A software renderer trips the low-power fallback; show the real look.
+      game.searchParams.set("fx", "1");
       await cdp.send("Page.navigate", { url: game.href });
       await sleep(6000);
       await shot(`${viewport.name}-setup`);

@@ -114,7 +114,7 @@ describe("after setup", () => {
     const hand = el.querySelector('[aria-label="Your resource cards"]');
     expect(hand).not.toBeNull();
     const total = [...(hand?.querySelectorAll("li") ?? [])]
-      .map((li) => Number(li.querySelector(".font-num")?.textContent ?? "0"))
+      .map((li) => Number(li.getAttribute("data-count") ?? "0"))
       .reduce((a, b) => a + b, 0);
     expect(total).toBeGreaterThan(0);
   });

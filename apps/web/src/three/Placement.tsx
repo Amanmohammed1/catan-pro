@@ -6,7 +6,9 @@ import {
   createCityGeometry,
   createRoadGeometry,
   createSettlementGeometry,
+  ROAD_LENGTH,
 } from "./geometries.js";
+import { PIECE_SCALE, ROAD_BULK, ROAD_SPAN } from "./Pieces.js";
 import { BOARD_TOP, edgeTransform, nodePosition } from "./layout3d.js";
 import { prefersReducedMotion } from "../ui/motion.js";
 
@@ -55,7 +57,7 @@ export function NodePlacements({
             <Pulse visible={!isHovered} color={color} />
 
             {isHovered && (
-              <mesh geometry={ghost} scale={1}>
+              <mesh geometry={ghost} scale={PIECE_SCALE}>
                 <meshStandardMaterial
                   color={color}
                   transparent
@@ -125,9 +127,9 @@ export function EdgePlacements({
             <mesh
               geometry={ghost}
               scale={[
-                transform.length / 0.62,
-                isHovered ? 1 : 0.42,
-                isHovered ? 1 : 0.5,
+                (transform.length * ROAD_SPAN) / ROAD_LENGTH,
+                isHovered ? ROAD_BULK : 0.45,
+                isHovered ? ROAD_BULK : 0.6,
               ]}
             >
               <meshStandardMaterial
@@ -173,7 +175,7 @@ function Pulse({
   readonly visible: boolean;
   readonly color: string;
 }): React.JSX.Element {
-  const mesh = useRef<THREE.Mesh>(null);
+  const mesh = useRef<THREE.Group>(null);
 
   useFrame(({ clock }) => {
     const current = mesh.current;
@@ -188,21 +190,25 @@ function Pulse({
     current.scale.setScalar(1 + Math.sin(t * 2.4) * 0.13);
   });
 
+  // A dark ring under a bright one reads on every terrain, pale fields and
+  // dark forests alike; the bright ring glows slightly under bloom.
   return (
-    <mesh
-      ref={mesh}
-      visible={visible}
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, 0.02, 0]}
-    >
-      <ringGeometry args={[0.11, 0.17, 24]} />
-      <meshBasicMaterial
-        color={color}
-        transparent
-        opacity={0.9}
-        side={THREE.DoubleSide}
-        depthWrite={false}
-      />
-    </mesh>
+    <group ref={mesh} visible={visible} position={[0, 0.02, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.1, 0.2, 28]} />
+        <meshBasicMaterial color="#1a110a" transparent opacity={0.55} depthWrite={false} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]}>
+        <ringGeometry args={[0.12, 0.175, 28]} />
+        <meshBasicMaterial
+          color={color}
+          transparent
+          opacity={0.95}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
+    </group>
   );
 }

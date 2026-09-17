@@ -1,5 +1,8 @@
 import { useState } from "react";
+import { Avatar } from "../ui/Avatar.js";
 import { Button } from "../ui/Button.js";
+import { Wordmark } from "../ui/Wordmark.js";
+import { SEAT_COLORS } from "../three/palette.js";
 import type { useConnection } from "./useConnection.js";
 
 /**
@@ -17,14 +20,17 @@ export function Lobby({
   const room = net.room;
 
   return (
-    <div className="grid min-h-screen place-items-center p-4">
-      <div className="w-full max-w-[380px]">
-        <div className="mb-5 text-center">
-          <h1 className="font-display text-2xl font-semibold tracking-tight">
-            hexport
-          </h1>
-          <p className="mt-1 text-xs text-ink-500">
-            Settle, trade, build. Three to four players.
+    <div className="relative grid min-h-screen place-items-center overflow-hidden p-4">
+      <Backdrop />
+
+      <div className="relative w-full max-w-[400px]">
+        <div className="mb-6 text-center">
+          <Wordmark size="lg" />
+          <p className="mt-2 text-sm text-ink-300">
+            Settle an island. Trade shrewdly. Ten points wins.
+          </p>
+          <p className="mt-1 text-xs text-ink-700">
+            Three to six players, online or around one screen.
           </p>
         </div>
 
@@ -33,7 +39,7 @@ export function Lobby({
         {net.error !== null && (
           <p
             role="alert"
-            className="mt-3 rounded-card border border-danger/45 bg-danger/12 px-3 py-2 text-xs text-danger"
+            className="mt-3 rounded-[11px] border border-danger/45 bg-danger/12 px-3 py-2 text-xs text-danger"
           >
             {net.error}{" "}
             <button
@@ -50,6 +56,33 @@ export function Lobby({
   );
 }
 
+/** A faint field of hexes behind the panel. Decorative. */
+function Backdrop(): React.JSX.Element {
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-[0.07]">
+      <svg width="100%" height="100%">
+        <defs>
+          <pattern id="hexes" width="56" height="97" patternUnits="userSpaceOnUse">
+            <path
+              d="M28 0 56 16v32L28 64 0 48V16z"
+              fill="none"
+              stroke="var(--color-gold)"
+              strokeWidth="1.5"
+            />
+            <path
+              d="M0 48 28 64v33M56 48 28 64"
+              fill="none"
+              stroke="var(--color-gold)"
+              strokeWidth="1.5"
+            />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#hexes)" />
+      </svg>
+    </div>
+  );
+}
+
 function JoinForm({
   net,
 }: {
@@ -62,7 +95,7 @@ function JoinForm({
   const named = nickname.trim() !== "";
 
   return (
-    <div className="rounded-panel border border-surface-700 bg-surface-800/85 p-4 shadow-panel backdrop-blur">
+    <div className="panel p-4">
       <Field label="Your name" htmlFor="nickname">
         <input
           id="nickname"
@@ -73,36 +106,49 @@ function JoinForm({
           onChange={(event) => {
             setNickname(event.target.value);
           }}
-          className="w-full rounded-card border border-surface-600 bg-surface-900/70 px-2.5 py-2 text-sm placeholder:text-ink-700"
+          className="w-full rounded-[11px] border border-gold/20 bg-surface-900/70 px-3 py-2.5 text-sm text-ink-100 placeholder:text-ink-700"
         />
       </Field>
 
       <Field label="Players" htmlFor="seats">
         <div className="flex gap-1.5" role="radiogroup" aria-labelledby="seats-label">
-          {[3, 4].map((n) => (
-            <button
-              key={n}
-              type="button"
-              role="radio"
-              aria-checked={seats === n}
-              onClick={() => {
-                setSeats(n);
-              }}
-              className={[
-                "flex-1 rounded-card border px-3 py-2 text-sm transition-colors",
-                seats === n
-                  ? "border-accent/60 bg-accent/15 text-accent"
-                  : "border-surface-600 bg-surface-700/60 text-ink-300 hover:bg-surface-600",
-              ].join(" ")}
-            >
-              {n}
-            </button>
-          ))}
+          {[3, 4, 5, 6].map((n) => {
+            // The 5–6 player board is the next milestone; the base game's
+            // island only seats four.
+            const unavailable = n > 4;
+            return (
+              <button
+                key={n}
+                type="button"
+                role="radio"
+                aria-checked={seats === n}
+                disabled={unavailable}
+                title={
+                  unavailable
+                    ? "The larger 5–6 player island is not built yet"
+                    : `${String(n)} players`
+                }
+                onClick={() => {
+                  setSeats(n);
+                }}
+                className={[
+                  "flex-1 rounded-[11px] border py-2.5 font-num text-base font-semibold transition-colors",
+                  seats === n
+                    ? "border-gold/60 bg-gold/15 text-gold"
+                    : "border-gold/15 bg-surface-700/60 text-ink-300 enabled:hover:bg-surface-600",
+                  unavailable ? "cursor-not-allowed opacity-35" : "",
+                ].join(" ")}
+              >
+                {n}
+              </button>
+            );
+          })}
         </div>
       </Field>
 
       <Button
         intent="primary"
+        data-action="create-room"
         disabled={!named}
         reason="Enter a name first"
         onClick={() => {
@@ -113,11 +159,7 @@ function JoinForm({
         Create a room
       </Button>
 
-      <div className="my-3 flex items-center gap-2 text-[10px] tracking-[0.12em] text-ink-700 uppercase">
-        <span className="h-px flex-1 bg-surface-600" />
-        or join one
-        <span className="h-px flex-1 bg-surface-600" />
-      </div>
+      <Divider>or join one</Divider>
 
       <Field label="Room code" htmlFor="code">
         <input
@@ -130,11 +172,12 @@ function JoinForm({
           onChange={(event) => {
             setCode(event.target.value.toUpperCase());
           }}
-          className="w-full rounded-card border border-surface-600 bg-surface-900/70 px-2.5 py-2 text-center font-num text-lg tracking-[0.3em] uppercase placeholder:tracking-[0.3em] placeholder:text-ink-700"
+          className="w-full rounded-[11px] border border-gold/20 bg-surface-900/70 px-3 py-2.5 text-center font-num text-xl font-semibold tracking-[0.3em] text-ink-100 uppercase placeholder:text-ink-700"
         />
       </Field>
 
       <Button
+        data-action="join-room"
         disabled={!named || code.length !== 5}
         reason={named ? "A room code is five characters" : "Enter a name first"}
         onClick={() => {
@@ -143,6 +186,19 @@ function JoinForm({
         className="justify-center"
       >
         Join
+      </Button>
+
+      <Divider>on your own</Divider>
+
+      <Button
+        intent="ghost"
+        data-action="hot-seat"
+        onClick={() => {
+          window.location.href = `?hotseat=1&players=${String(seats)}`;
+        }}
+        className="justify-center"
+      >
+        Play on this screen
       </Button>
     </div>
   );
@@ -153,6 +209,7 @@ function RoomPanel({
 }: {
   readonly net: ReturnType<typeof useConnection>;
 }): React.JSX.Element {
+  const [copied, setCopied] = useState(false);
   const room = net.room;
   if (room === null) return <></>;
 
@@ -163,31 +220,45 @@ function RoomPanel({
     room.seats.length >= 3 && room.seats.every((seat) => seat.ready);
 
   return (
-    <div className="rounded-panel border border-surface-700 bg-surface-800/85 p-4 shadow-panel backdrop-blur">
+    <div className="panel p-4">
       <div className="mb-4 text-center">
-        <p className="text-[10px] tracking-[0.12em] text-ink-700 uppercase">
-          Room code
-        </p>
-        <p className="font-num text-3xl font-semibold tracking-[0.25em] text-accent">
+        <p className="eyebrow">Room code</p>
+        <p className="font-display text-4xl font-bold tracking-[0.22em] text-gold">
           {room.code}
         </p>
-        <p className="mt-1 text-xs text-ink-500">
-          {room.seats.length} of {room.maxPlayers} seated
-        </p>
+        <div className="mt-1.5 flex items-center justify-center gap-2 text-xs text-ink-500">
+          <span>
+            {room.seats.length} of {room.maxPlayers} seated
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard?.writeText(room.code).then(
+                () => {
+                  setCopied(true);
+                },
+                () => {
+                  /* clipboard blocked; the code is on screen anyway */
+                },
+              );
+            }}
+            className="rounded px-1.5 py-0.5 text-gold/80 underline underline-offset-2 hover:text-gold"
+          >
+            {copied ? "copied" : "copy"}
+          </button>
+        </div>
       </div>
 
-      <ul className="mb-4 flex flex-col gap-1" aria-label="Players in this room">
+      <ul className="mb-4 flex flex-col gap-1.5" aria-label="Players in this room">
         {room.seats.map((seat) => (
           <li
             key={seat.player}
-            className="flex items-center gap-2 rounded-card border border-surface-700 bg-surface-700/40 px-2.5 py-2"
+            className="flex items-center gap-2.5 rounded-[11px] border border-gold/12 bg-surface-700/50 px-2.5 py-2"
           >
-            <span
-              aria-hidden="true"
-              className={[
-                "h-2 w-2 shrink-0 rounded-full",
-                seat.connected ? "bg-success" : "bg-surface-500",
-              ].join(" ")}
+            <Avatar
+              seat={seat.player}
+              color={SEAT_COLORS[seat.player % SEAT_COLORS.length] ?? "#888"}
+              size={26}
             />
             <span className="flex-1 truncate text-sm">
               {seat.nickname}
@@ -200,12 +271,17 @@ function RoomPanel({
             )}
             <span
               className={[
-                "text-[10px] tracking-wide uppercase",
+                "text-[10px] font-semibold tracking-[0.1em] uppercase",
                 seat.ready ? "text-success" : "text-ink-700",
               ].join(" ")}
             >
               {seat.ready ? "ready" : "waiting"}
             </span>
+            {!seat.connected && (
+              <span className="text-[10px] text-ink-700" title="Not connected">
+                away
+              </span>
+            )}
             {isHost && seat.player !== you && (
               <button
                 type="button"
@@ -224,6 +300,7 @@ function RoomPanel({
       <div className="flex flex-col gap-1.5">
         <Button
           intent={me?.ready === true ? "default" : "primary"}
+          data-action="ready"
           onClick={() => {
             net.setReady(me?.ready !== true);
           }}
@@ -235,6 +312,7 @@ function RoomPanel({
         {isHost && (
           <Button
             intent="primary"
+            data-action="start-game"
             disabled={!everyoneReady}
             reason={
               room.seats.length < 3
@@ -255,10 +333,20 @@ function RoomPanel({
           </p>
         )}
 
-        <Button intent="ghost" onClick={net.leave} className="justify-center">
+        <Button intent="ghost" data-action="leave" onClick={net.leave} className="justify-center">
           Leave
         </Button>
       </div>
+    </div>
+  );
+}
+
+function Divider({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
+  return (
+    <div className="my-3 flex items-center gap-2 text-[10px] font-semibold tracking-[0.12em] text-ink-700 uppercase">
+      <span className="h-px flex-1 bg-gold/15" />
+      {children}
+      <span className="h-px flex-1 bg-gold/15" />
     </div>
   );
 }
@@ -274,11 +362,7 @@ function Field({
 }): React.JSX.Element {
   return (
     <div className="mb-3">
-      <label
-        htmlFor={htmlFor}
-        id={`${htmlFor}-label`}
-        className="mb-1 block text-[10px] tracking-[0.1em] text-ink-700 uppercase"
-      >
+      <label htmlFor={htmlFor} id={`${htmlFor}-label`} className="eyebrow mb-1.5 block">
         {label}
       </label>
       {children}

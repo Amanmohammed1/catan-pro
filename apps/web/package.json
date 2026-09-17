@@ -10,28 +10,30 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fontsource-variable/fraunces": "5.3.0",
+    "@fontsource-variable/inter": "5.3.0",
     "@hexport/engine": "workspace:*",
+    "@hexport/protocol": "workspace:*",
     "@hexport/scenarios": "workspace:*",
+    "@react-three/drei": "10.7.8",
+    "@react-three/fiber": "9.7.0",
+    "@react-three/postprocessing": "3.1.1",
+    "motion": "13.2.0",
+    "postprocessing": "6.39.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "@hexport/protocol": "workspace:*",
     "three": "0.186.0",
-    "@react-three/fiber": "9.7.0",
-    "@react-three/drei": "10.7.8",
-    "@react-three/postprocessing": "3.1.1",
-    "postprocessing": "6.39.5",
-    "zustand": "5.0.15",
-    "motion": "13.2.0"
+    "zustand": "5.0.15"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.7",
-    "@vitejs/plugin-react": "6.1.1",
-    "vite": "8.3.0",
-    "ws": "8.21.3",
-    "@types/ws": "8.18.1",
     "@types/three": "0.186.0",
+    "@types/ws": "8.18.1",
+    "@vitejs/plugin-react": "6.1.1",
     "tailwindcss": "4.3.3",
-    "@tailwindcss/vite": "4.3.3"
+    "vite": "8.3.0",
+    "ws": "8.21.3"
   }
 }

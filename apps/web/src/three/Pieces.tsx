@@ -5,6 +5,7 @@ import {
   createCityGeometry,
   createRoadGeometry,
   createSettlementGeometry,
+  ROAD_LENGTH,
 } from "./geometries.js";
 import { BOARD_TOP, edgeTransform, nodePosition } from "./layout3d.js";
 import { color } from "./palette.js";
@@ -13,11 +14,31 @@ import { useGrowIn } from "./useGrowIn.js";
 /**
  * Roads, settlements and cities.
  *
- * One instanced mesh per piece type, coloured per instance. A piece that has
- * just appeared grows into place; see `useGrowIn`.
+ * One instanced mesh per piece type, coloured per instance, plus a second
+ * instanced "hull" drawn back-faces-only in near-black and slightly larger: a
+ * cheap outline that keeps a white settlement legible on a pale field and a
+ * green one on a forest. A piece that has just appeared grows into place.
  */
 
-const SETTLE_SCALE = 1;
+/** Roads stop short of the corners, so the buildings at each end stay clear. */
+export const ROAD_SPAN = 0.8;
+/** Road thickness and width, relative to the modelled plank. */
+export const ROAD_BULK = 1.2;
+/**
+ * Buildings are modelled at a comfortable unit size and scaled up here: real
+ * pieces are big against the hexes, and a settlement you have to squint at is
+ * the opposite of what a board game wants.
+ */
+export const PIECE_SCALE = 1.38;
+const OUTLINE = "#1a110a";
+
+interface PieceInstance {
+  readonly key: string;
+  readonly position: THREE.Vector3;
+  readonly rotationY: number;
+  readonly scale: THREE.Vector3;
+  readonly color: string;
+}
 
 export function Roads({
   board,
@@ -29,56 +50,27 @@ export function Roads({
   readonly colors: readonly string[];
 }): React.JSX.Element | null {
   const geometry = useMemo(() => createRoadGeometry(), []);
-  const entries = useMemo(
-    () => Object.entries(roads).sort(([a], [b]) => (a < b ? -1 : 1)),
-    [roads],
-  );
-  const mesh = useRef<THREE.InstancedMesh>(null);
-  const grown = useGrowIn(entries.map(([edge]) => edge));
-
-  useLayoutEffect(() => {
-    const instanced = mesh.current;
-    if (instanced === null) return;
-
-    const matrix = new THREE.Matrix4();
-    const quaternion = new THREE.Quaternion();
-    const scale = new THREE.Vector3();
-    const position = new THREE.Vector3();
-
-    entries.forEach(([edge, owner], index) => {
-      const transform = edgeTransform(board, edge, BOARD_TOP + 0.005);
-      if (transform === null) return;
-
-      position.set(...transform.position);
-      quaternion.setFromEuler(new THREE.Euler(0, transform.rotationY, 0));
-      // Roads stretch to exactly span their path, whatever the board scale.
-      const t = grown.get(edge) ?? 1;
-      scale.set(transform.length / 0.62, t, 1);
-
-      matrix.compose(position, quaternion, scale);
-      instanced.setMatrixAt(index, matrix);
-      instanced.setColorAt(index, color(colors[owner] ?? "#888"));
-    });
-
-    instanced.instanceMatrix.needsUpdate = true;
-    if (instanced.instanceColor !== null) {
-      instanced.instanceColor.needsUpdate = true;
+  const instances = useMemo(() => {
+    const out: PieceInstance[] = [];
+    for (const [edge, owner] of Object.entries(roads).sort(([a], [b]) => (a < b ? -1 : 1))) {
+      const transform = edgeTransform(board, edge, BOARD_TOP);
+      if (transform === null) continue;
+      out.push({
+        key: edge,
+        position: new THREE.Vector3(...transform.position),
+        rotationY: transform.rotationY,
+        scale: new THREE.Vector3(
+          (transform.length * ROAD_SPAN) / ROAD_LENGTH,
+          ROAD_BULK,
+          ROAD_BULK,
+        ),
+        color: colors[owner] ?? "#888888",
+      });
     }
-    instanced.computeBoundingSphere();
-  }, [board, entries, colors, grown]);
+    return out;
+  }, [board, roads, colors]);
 
-  if (entries.length === 0) return null;
-
-  return (
-    <instancedMesh
-      ref={mesh}
-      args={[geometry, undefined, entries.length]}
-      castShadow
-      receiveShadow
-    >
-      <meshStandardMaterial roughness={0.55} metalness={0.05} />
-    </instancedMesh>
-  );
+  return <PieceLayer geometry={geometry} instances={instances} outline={[1.04, 1.3, 1.35]} />;
 }
 
 export function Buildings({
@@ -88,85 +80,102 @@ export function Buildings({
   readonly buildings: Readonly<Record<NodeId, Building>>;
   readonly colors: readonly string[];
 }): React.JSX.Element {
-  const settlements = useMemo(
-    () =>
+  const settlementGeometry = useMemo(() => createSettlementGeometry(), []);
+  const cityGeometry = useMemo(() => createCityGeometry(), []);
+
+  const [settlements, cities] = useMemo(() => {
+    const make = (kind: Building["kind"]): PieceInstance[] =>
       Object.entries(buildings)
-        .filter(([, b]) => b.kind === "settlement")
-        .sort(([a], [b]) => (a < b ? -1 : 1)),
-    [buildings],
-  );
-  const cities = useMemo(
-    () =>
-      Object.entries(buildings)
-        .filter(([, b]) => b.kind === "city")
-        .sort(([a], [b]) => (a < b ? -1 : 1)),
-    [buildings],
-  );
+        .filter(([, b]) => b.kind === kind)
+        .sort(([a], [b]) => (a < b ? -1 : 1))
+        .map(([node, b]) => ({
+          key: node,
+          position: new THREE.Vector3(...nodePosition(node, BOARD_TOP)),
+          rotationY: 0,
+          scale: new THREE.Vector3(PIECE_SCALE, PIECE_SCALE, PIECE_SCALE),
+          color: colors[b.player] ?? "#888888",
+        }));
+    return [make("settlement"), make("city")];
+  }, [buildings, colors]);
 
   return (
     <>
-      <BuildingLayer
-        entries={settlements}
-        colors={colors}
-        make={createSettlementGeometry}
-      />
-      <BuildingLayer entries={cities} colors={colors} make={createCityGeometry} />
+      <PieceLayer geometry={settlementGeometry} instances={settlements} outline={[1.1, 1.07, 1.12]} />
+      <PieceLayer geometry={cityGeometry} instances={cities} outline={[1.08, 1.05, 1.1]} />
     </>
   );
 }
 
-function BuildingLayer({
-  entries,
-  colors,
-  make,
+function PieceLayer({
+  geometry,
+  instances,
+  outline,
 }: {
-  readonly entries: readonly (readonly [string, Building])[];
-  readonly colors: readonly string[];
-  readonly make: () => THREE.BufferGeometry;
+  readonly geometry: THREE.BufferGeometry;
+  readonly instances: readonly PieceInstance[];
+  /** Hull scale relative to the piece, per axis. */
+  readonly outline: readonly [number, number, number];
 }): React.JSX.Element | null {
-  const geometry = useMemo(make, [make]);
-  const mesh = useRef<THREE.InstancedMesh>(null);
-  const grown = useGrowIn(entries.map(([node]) => node));
+  const body = useRef<THREE.InstancedMesh>(null);
+  const hull = useRef<THREE.InstancedMesh>(null);
+  const grown = useGrowIn(instances.map((i) => i.key));
 
   useLayoutEffect(() => {
-    const instanced = mesh.current;
-    if (instanced === null) return;
+    const main = body.current;
+    const rim = hull.current;
+    if (main === null || rim === null) return;
 
     const matrix = new THREE.Matrix4();
     const quaternion = new THREE.Quaternion();
+    const euler = new THREE.Euler();
     const scale = new THREE.Vector3();
-    const position = new THREE.Vector3();
 
-    entries.forEach(([node, building], index) => {
-      const [x, y, z] = nodePosition(node, BOARD_TOP);
-      position.set(x, y, z);
-      quaternion.identity();
-      const t = grown.get(node) ?? 1;
-      // Overshoot slightly on the way in: the piece lands rather than appears.
-      scale.setScalar(SETTLE_SCALE * t);
+    instances.forEach((piece, index) => {
+      const t = grown.get(piece.key) ?? 1;
+      quaternion.setFromEuler(euler.set(0, piece.rotationY, 0));
 
-      matrix.compose(position, quaternion, scale);
-      instanced.setMatrixAt(index, matrix);
-      instanced.setColorAt(index, color(colors[building.player] ?? "#888"));
+      scale.copy(piece.scale).multiplyScalar(t);
+      matrix.compose(piece.position, quaternion, scale);
+      main.setMatrixAt(index, matrix);
+      main.setColorAt(index, color(piece.color));
+
+      scale.set(
+        piece.scale.x * outline[0] * t,
+        piece.scale.y * outline[1] * t,
+        piece.scale.z * outline[2] * t,
+      );
+      matrix.compose(piece.position, quaternion, scale);
+      rim.setMatrixAt(index, matrix);
     });
 
-    instanced.instanceMatrix.needsUpdate = true;
-    if (instanced.instanceColor !== null) {
-      instanced.instanceColor.needsUpdate = true;
+    for (const mesh of [main, rim]) {
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.computeBoundingSphere();
     }
-    instanced.computeBoundingSphere();
-  }, [entries, colors, grown]);
+    if (main.instanceColor !== null) main.instanceColor.needsUpdate = true;
+  }, [instances, grown, outline]);
 
-  if (entries.length === 0) return null;
+  if (instances.length === 0) return null;
 
   return (
-    <instancedMesh
-      ref={mesh}
-      args={[geometry, undefined, entries.length]}
-      castShadow
-      receiveShadow
-    >
-      <meshStandardMaterial roughness={0.45} metalness={0.08} />
-    </instancedMesh>
+    <group>
+      <instancedMesh
+        ref={body}
+        args={[geometry, undefined, instances.length]}
+        castShadow
+        receiveShadow
+        raycast={() => null}
+      >
+        {/* Vertex colours darken the roof; the instance colour is the seat. */}
+        <meshStandardMaterial vertexColors roughness={0.5} metalness={0.02} />
+      </instancedMesh>
+      <instancedMesh
+        ref={hull}
+        args={[geometry, undefined, instances.length]}
+        raycast={() => null}
+      >
+        <meshBasicMaterial color={OUTLINE} side={THREE.BackSide} />
+      </instancedMesh>
+    </group>
   );
 }

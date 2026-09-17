@@ -5,9 +5,10 @@ import { describeEvent } from "../game/describeEvent.js";
 /**
  * The game log, and chat when playing online.
  *
- * Collapsed by default on narrow screens: it is reference material, not
- * something to watch. Newest first, so the thing that just happened is at the
- * top rather than requiring a scroll.
+ * Newest first, so the thing that just happened is at the top rather than
+ * requiring a scroll. Each line carries the colour of the player it is about,
+ * and every turn opens with a divider naming whose turn it is, so the log reads
+ * as a sequence of turns rather than an undifferentiated stream.
  */
 export function LogPanel({
   log,
@@ -34,20 +35,22 @@ export function LogPanel({
   const lines = useMemo(
     () =>
       log
-        .map((event, index) => ({ index, text: describeEvent(event, names), event }))
+        .map((event, index) => ({
+          index,
+          text: describeEvent(event, names),
+          event,
+          actor: actorOf(event),
+        }))
         .filter((line) => line.text !== "")
-        .slice(-120)
+        .slice(-150)
         .reverse(),
     [log, names],
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-panel border border-surface-700 bg-surface-800/80 backdrop-blur">
+    <div className="panel flex h-full min-h-0 flex-col">
       {hasChat ? (
-        <div
-          className="flex shrink-0 gap-1 border-b border-surface-700 p-1.5"
-          role="tablist"
-        >
+        <div className="flex shrink-0 gap-1 border-b border-gold/10 p-1.5" role="tablist">
           <TabButton
             active={tab === "log"}
             onClick={() => {
@@ -67,35 +70,54 @@ export function LogPanel({
           </TabButton>
         </div>
       ) : (
-        <h2 className="shrink-0 border-b border-surface-700 px-3 py-2 text-[11px] font-semibold tracking-[0.08em] text-ink-500 uppercase">
-          Game log
-        </h2>
+        <h2 className="eyebrow shrink-0 border-b border-gold/10 px-3.5 py-2.5">Game log</h2>
       )}
 
       {tab === "log" || !hasChat ? (
-        <ol className="min-h-0 flex-1 overflow-y-auto px-3 py-2 text-xs leading-relaxed">
+        <ol className="min-h-0 flex-1 overflow-y-auto px-3 py-2 text-[12.5px] leading-snug">
           {lines.length === 0 && (
-            <li className="text-ink-700">Nothing has happened yet.</li>
+            <li className="py-1 text-ink-500">Nothing has happened yet.</li>
           )}
-          {lines.map((line) => (
-            <li
-              key={line.index}
-              className="border-b border-surface-700/50 py-1 text-ink-300 last:border-0"
-            >
-              {line.text}
-            </li>
-          ))}
+          {lines.map((line) =>
+            line.event.e === "turnStarted" ? (
+              <li
+                key={line.index}
+                className="flex items-center gap-2 pt-3 pb-1 text-[10px] font-semibold tracking-[0.14em] text-ink-500 uppercase first:pt-1"
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ background: colors[line.event.player] }}
+                />
+                <span className="shrink-0">{line.text.replace(/^— /, "")}</span>
+                <span aria-hidden="true" className="h-px flex-1 bg-gold/15" />
+              </li>
+            ) : (
+              <li key={line.index} className="flex gap-2 py-[3px] text-ink-300">
+                <span
+                  aria-hidden="true"
+                  className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{
+                    background: line.actor === null ? "var(--color-ink-700)" : colors[line.actor],
+                  }}
+                />
+                <span className={line.event.e === "gameEnded" ? "font-semibold text-gold" : ""}>
+                  {line.text}
+                </span>
+              </li>
+            ),
+          )}
         </ol>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
-          <ol className="min-h-0 flex-1 overflow-y-auto px-3 py-2 text-xs leading-relaxed">
+          <ol className="min-h-0 flex-1 overflow-y-auto px-3 py-2 text-[12.5px] leading-snug">
             {(chat ?? []).length === 0 && (
-              <li className="text-ink-700">No messages yet.</li>
+              <li className="py-1 text-ink-500">No messages yet. Say hello.</li>
             )}
             {(chat ?? []).slice(-80).map((line, index) => (
               <li key={`${String(line.at)}-${String(index)}`} className="py-0.5">
                 <span
-                  className="font-medium"
+                  className="font-semibold"
                   style={{
                     color: line.player === null ? undefined : colors[line.player],
                   }}
@@ -108,7 +130,7 @@ export function LogPanel({
           </ol>
 
           <form
-            className="shrink-0 border-t border-surface-700 p-1.5"
+            className="shrink-0 border-t border-gold/10 p-2"
             onSubmit={(event) => {
               event.preventDefault();
               const text = draft.trim();
@@ -125,13 +147,30 @@ export function LogPanel({
               onChange={(event) => {
                 setDraft(event.target.value);
               }}
-              className="w-full rounded-md border border-surface-600 bg-surface-900/70 px-2 py-1.5 text-xs placeholder:text-ink-700"
+              className="w-full rounded-[9px] border border-gold/15 bg-surface-900/70 px-2.5 py-2 text-xs text-ink-100 placeholder:text-ink-700"
             />
           </form>
         </div>
       )}
     </div>
   );
+}
+
+/** The player an event is about, for colouring its line. */
+function actorOf(event: GameEvent): number | null {
+  switch (event.e) {
+    case "cardStolen":
+      return event.to;
+    case "tradeCompleted":
+      return event.from;
+    case "gameEnded":
+      return event.winner;
+    case "longestRoadChanged":
+    case "largestArmyChanged":
+      return event.to;
+    default:
+      return "player" in event && typeof event.player === "number" ? event.player : null;
+  }
 }
 
 function TabButton({
@@ -150,7 +189,7 @@ function TabButton({
       aria-selected={active}
       onClick={onClick}
       className={[
-        "flex-1 rounded-md px-2 py-1 text-[11px] font-semibold tracking-wide uppercase transition-colors",
+        "flex-1 rounded-[8px] px-2 py-1.5 text-[11px] font-semibold tracking-[0.1em] uppercase transition-colors",
         active
           ? "bg-surface-600 text-ink-100"
           : "text-ink-500 hover:bg-surface-700 hover:text-ink-300",

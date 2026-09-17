@@ -1,61 +1,86 @@
 @import "tailwindcss";
 
 /*
- * Design tokens.
+ * Design tokens — "warm tabletop".
  *
- * The board is warm and tactile — clay, wheat, timber, stone. The interface
- * around it is deliberately cool and dark so it recedes and the board carries
- * the colour. Everything below is referenced by name; no component invents a
- * hex value of its own.
+ * The game is a board on a walnut table in late-afternoon light. The interface
+ * is the table's furniture: leather-dark panels with a gold hairline, and cards
+ * printed on parchment. The board carries the bright colour; everything around
+ * it is warm and low so it recedes.
+ *
+ * Every value is a hex literal on purpose: `theme.test.ts` parses this file and
+ * checks every text/background pairing the interface uses against WCAG AA, so
+ * a colour tweak that costs legibility fails the build instead of shipping.
+ * No component invents a colour of its own (CLAUDE.md, Conventions).
  */
 @theme {
-  /* Surfaces: a cool near-black, lifted in steps rather than by opacity so
-     panels stay legible over any part of the board. */
-  --color-surface-900: oklch(0.17 0.012 260);
-  --color-surface-800: oklch(0.21 0.014 260);
-  --color-surface-700: oklch(0.26 0.016 258);
-  --color-surface-600: oklch(0.32 0.018 256);
-  --color-surface-500: oklch(0.42 0.02 255);
+  /* Walnut and leather, lifted in steps rather than by opacity so panels stay
+     legible over any part of the board. */
+  --color-surface-900: #140d08;
+  --color-surface-800: #21160e;
+  --color-surface-700: #2e1f14;
+  --color-surface-600: #46301f;
+  --color-surface-500: #6b4c32;
 
-  --color-ink-100: oklch(0.97 0.004 250);
-  --color-ink-300: oklch(0.86 0.008 252);
-  --color-ink-500: oklch(0.68 0.012 254);
-  --color-ink-700: oklch(0.52 0.014 256);
+  /* Text on dark: cream, not white, so it sits in the warm light. */
+  --color-ink-100: #fcf2dd;
+  --color-ink-300: #ecdab6;
+  --color-ink-500: #cdb38b;
+  --color-ink-700: #ad9471;
 
-  /* One warm accent, used for "it is your move" and nothing else. */
-  --color-accent: oklch(0.82 0.15 78);
-  --color-accent-dim: oklch(0.62 0.12 72);
+  /* Parchment cards, and the ink printed on them. */
+  --color-parchment-50: #fdf8ec;
+  --color-parchment-100: #f7ecd3;
+  --color-parchment-200: #ecdcb8;
+  --color-parchment-300: #dcc494;
+  --color-parchment-400: #c3a46f;
+  --color-quill-900: #2b1c11;
+  --color-quill-700: #553f2a;
+  --color-quill-500: #6e5439;
 
-  --color-danger: oklch(0.64 0.19 25);
-  --color-success: oklch(0.72 0.15 155);
+  /* Brass and gold. The accent means "this is your move" and little else. */
+  --color-accent: #e9b858;
+  --color-accent-dim: #b98a36;
+  --color-gold: #f2cd7a;
 
-  /* Resources. Tuned for contrast against surface-800 and distinguishable
-     under the three common colour-vision deficiencies; each card also carries
-     a glyph, so colour is never the only signal. */
-  --color-brick: oklch(0.66 0.15 38);
-  --color-lumber: oklch(0.58 0.11 148);
-  --color-wool: oklch(0.83 0.08 130);
-  --color-grain: oklch(0.84 0.13 92);
-  --color-ore: oklch(0.72 0.03 250);
+  --color-danger: #ec6f58;
+  --color-success: #8cc673;
 
-  /* Terrain, used by both the 3D board and the resource legend. */
-  --color-terrain-hill: oklch(0.58 0.12 42);
-  --color-terrain-forest: oklch(0.44 0.09 150);
-  --color-terrain-pasture: oklch(0.76 0.12 138);
-  --color-terrain-field: oklch(0.82 0.13 92);
-  --color-terrain-mountain: oklch(0.66 0.02 250);
-  --color-terrain-desert: oklch(0.86 0.05 85);
-  --color-terrain-sea: oklch(0.52 0.09 232);
+  /* Resources. Tuned to read on both parchment and leather, and distinct under
+     the common colour-vision deficiencies; every resource also carries its own
+     illustration and name, so colour is never the only signal. */
+  --color-brick: #d06a40;
+  --color-lumber: #5e9a46;
+  --color-wool: #a6cc68;
+  --color-grain: #ebbf45;
+  --color-ore: #a4aebc;
 
-  --radius-panel: 14px;
-  --radius-card: 9px;
+  /* Terrain, for the DOM legend. The 3D board has its own tuned copies in
+     three/palette.ts because lighting shifts how they read. */
+  --color-terrain-hill: #b8643c;
+  --color-terrain-forest: #3f7a3a;
+  --color-terrain-pasture: #8fbf5a;
+  --color-terrain-field: #e2b845;
+  --color-terrain-mountain: #8d949c;
+  --color-terrain-desert: #e0cc9a;
+  --color-terrain-sea: #2e6f98;
 
-  --shadow-panel: 0 12px 40px -12px oklch(0 0 0 / 0.65);
-  --shadow-lift: 0 6px 18px -6px oklch(0 0 0 / 0.55);
+  /* 900px: below it the game screen stacks and scrolls; above it the board
+     owns the viewport. */
+  --breakpoint-tab: 56.25rem;
 
-  --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
-  --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-num: ui-monospace, "SF Mono", Menlo, monospace;
+  --radius-panel: 16px;
+  --radius-card: 10px;
+
+  --shadow-panel: 0 18px 40px -18px #000000cc, 0 0 0 1px #f2cd7a14 inset;
+  --shadow-lift: 0 8px 20px -8px #000000b3;
+  --shadow-card: 0 1px 0 #ffffff66 inset, 0 10px 18px -10px #000000cc;
+  --shadow-glow: 0 0 0 1px #e9b858aa, 0 0 22px -4px #e9b85899;
+
+  --font-display: "Fraunces Variable", Georgia, "Times New Roman", serif;
+  --font-ui: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
+  --font-num: "Fraunces Variable", Georgia, serif;
 
   /* One motion scale, so nothing feels out of step with anything else. */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
@@ -85,18 +110,29 @@
 
   body {
     margin: 0;
+    /* Walnut: a low warm light from the top, a darker rim, and a fine grain
+       drawn with SVG turbulence stretched along the boards. */
     background:
       radial-gradient(
-        120% 80% at 50% 0%,
-        oklch(0.26 0.03 250) 0%,
-        oklch(0.15 0.015 258) 60%
+        120% 90% at 50% 8%,
+        #3a2616e6 0%,
+        #1d130ce6 55%,
+        #0e0906f2 100%
       ),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='600'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.004 0.09' numOctaves='3' seed='7'/><feColorMatrix values='0 0 0 0 0.45  0 0 0 0 0.28  0 0 0 0 0.15  0 0 0 0.55 0'/></filter><rect width='600' height='600' filter='url(%23g)'/></svg>"),
       var(--color-surface-900);
     color: var(--color-ink-100);
     font-family: var(--font-ui);
     font-size: 14px;
     -webkit-font-smoothing: antialiased;
-    overflow: hidden;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* The game screen owns the viewport on wide screens; narrow screens scroll. */
+  @media (min-width: 900px) {
+    body {
+      overflow: hidden;
+    }
   }
 
   /* A visible, consistent focus ring everywhere. Keyboard users should never
@@ -104,7 +140,7 @@
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: 6px;
   }
 
   button {
@@ -124,31 +160,102 @@
     white-space: nowrap;
     border: 0;
   }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-surface-600);
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* Leather panel with a brass hairline. */
+  .panel {
+    border-radius: var(--radius-panel);
+    border: 1px solid #f2cd7a26;
+    background:
+      linear-gradient(180deg, #2e1f14f2 0%, #21160ef2 100%);
+    box-shadow: var(--shadow-panel);
+  }
+
+  /* Printed parchment, used for every card in the game. */
+  .parchment {
+    background:
+      radial-gradient(120% 80% at 30% 0%, #fffaf0 0%, #f7ecd3 55%, #ecdcb8 100%);
+    color: var(--color-quill-900);
+    box-shadow: var(--shadow-card);
+  }
+
+  /* A small-caps label, the typographic voice of the whole interface. */
+  .eyebrow {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-ink-500);
+  }
 }
 
 /* Keyframes referenced by components. Kept here so every animation the
    interface uses is visible in one place, and so the reduced-motion block
    above neutralises all of them at once. */
-@keyframes dice-shake {
-  0%,
+@keyframes dice-tumble {
+  0% {
+    transform: translateY(-10px) rotate(-200deg) scale(0.9);
+  }
+  60% {
+    transform: translateY(2px) rotate(12deg) scale(1.04);
+  }
   100% {
-    transform: translateY(0) rotate(0deg);
-  }
-  25% {
-    transform: translateY(-2px) rotate(-6deg);
-  }
-  75% {
-    transform: translateY(1px) rotate(5deg);
+    transform: translateY(0) rotate(0deg) scale(1);
   }
 }
 
 @keyframes rise-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px #e9b85888, 0 0 14px -6px #e9b85899;
+  }
+  50% {
+    box-shadow: 0 0 0 1px #e9b858dd, 0 0 26px -2px #e9b858cc;
+  }
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translate3d(0, -12vh, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 0px), 105vh, 0) rotate(var(--spin, 540deg));
+    opacity: 0.9;
+  }
+}
+
+@keyframes banner-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }

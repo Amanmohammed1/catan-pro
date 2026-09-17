@@ -1,30 +1,23 @@
 import { useMemo } from "react";
-import { RESOURCE_KINDS, type ResourceKind } from "@hexport/engine";
+import { RESOURCE_KINDS, type DevCardKind } from "@hexport/engine";
 import type { WireView } from "@hexport/protocol";
-import { ResourceIcon, CardBackIcon } from "./icons.js";
+import { RESOURCE_FIELD, RESOURCE_NAME, ResourceArt } from "./cards/ResourceArt.js";
+import {
+  DEV_CARD_FIELD,
+  DEV_CARD_TEXT,
+  DEV_CARD_TITLE,
+  DevCardArt,
+} from "./cards/DevCardArt.js";
 
 /**
  * Your hand, docked at the bottom of the screen.
  *
- * Laid out as a row of counted cards rather than a literal fan of individual
- * cards. A fan looks the part but makes "how many wool do I have?" a counting
- * exercise, and that question gets asked on every single turn.
- *
- * Cards you cannot currently spend are dimmed rather than hidden, so the shape
- * of your hand stays stable and your eye keeps its place.
+ * Printed cards on parchment, one per resource, each with a large count. Not a
+ * literal fan of individual cards: a fan looks the part but makes "how many
+ * wool do I have?" a counting exercise, and that question gets asked on every
+ * single turn. Cards you hold none of are faded rather than hidden, so the
+ * shape of your hand stays stable and your eye keeps its place.
  */
-
-const RESOURCE_STYLE: Record<
-  ResourceKind,
-  { bg: string; text: string; label: string }
-> = {
-  brick: { bg: "bg-brick/18 border-brick/45", text: "text-brick", label: "Brick" },
-  lumber: { bg: "bg-lumber/18 border-lumber/45", text: "text-lumber", label: "Lumber" },
-  wool: { bg: "bg-wool/18 border-wool/45", text: "text-wool", label: "Wool" },
-  grain: { bg: "bg-grain/18 border-grain/45", text: "text-grain", label: "Grain" },
-  ore: { bg: "bg-ore/18 border-ore/45", text: "text-ore", label: "Ore" },
-};
-
 export function HandDock({
   view,
   overLimit,
@@ -39,7 +32,7 @@ export function HandDock({
   );
 
   const devCards = useMemo(() => {
-    const counts = new Map<string, { total: number; playable: number }>();
+    const counts = new Map<DevCardKind, { total: number; playable: number }>();
     for (const card of view.self.devCards) {
       if (card.played) continue;
       const entry = counts.get(card.kind) ?? { total: 0, playable: 0 };
@@ -51,40 +44,48 @@ export function HandDock({
   }, [view.self.devCards]);
 
   return (
-    <div className="flex flex-wrap items-end justify-center gap-2">
-      <ul className="flex items-end gap-1.5" aria-label="Your resource cards">
+    <div className="flex w-full items-end justify-center gap-4 overflow-x-auto px-1 pt-2 pb-1">
+      <ul className="flex items-end gap-2" aria-label="Your resource cards">
         {RESOURCE_KINDS.map((kind) => {
           const count = view.self.resources[kind];
-          const style = RESOURCE_STYLE[kind];
           return (
             <li
               key={kind}
+              data-count={count}
+              title={`${RESOURCE_NAME[kind]}: ${String(count)}`}
               className={[
-                "flex w-[58px] flex-col items-center gap-0.5 rounded-card border px-1.5 py-2",
-                "transition-[transform,opacity] duration-200 ease-[var(--ease-out-soft)]",
-                style.bg,
-                count === 0 ? "opacity-35" : "opacity-100",
+                "parchment relative flex h-[92px] w-[66px] shrink-0 flex-col overflow-hidden rounded-[10px] border border-parchment-400/70",
+                "transition-[transform,opacity,filter] duration-200 ease-[var(--ease-out-soft)]",
+                count === 0 ? "opacity-40 saturate-50" : "hover:-translate-y-1.5",
               ].join(" ")}
             >
-              <span className={style.text}>
-                <ResourceIcon kind={kind} className="h-5 w-5" />
+              <span
+                className="m-1 mb-0 flex flex-1 items-center justify-center rounded-[7px] p-1"
+                style={{ background: RESOURCE_FIELD[kind] }}
+              >
+                <ResourceArt kind={kind} className="h-full w-full" />
               </span>
-              <span className="font-num text-lg leading-none font-semibold tabular-nums">
+              <span className="py-1 text-center text-[10px] font-semibold tracking-[0.12em] text-quill-700 uppercase">
+                {RESOURCE_NAME[kind]}
+              </span>
+              <span
+                className="absolute top-0.5 right-0.5 grid h-6 min-w-6 place-items-center rounded-full bg-quill-900 px-1.5 font-num text-sm leading-none font-bold text-parchment-50 tabular-nums shadow-lift"
+                aria-hidden="true"
+              >
                 {count}
-              </span>
-              <span className="text-[10px] tracking-wide text-ink-500">
-                {style.label}
               </span>
             </li>
           );
         })}
       </ul>
 
-      <div className="flex flex-col items-start gap-1 pb-1">
+      <div className="flex shrink-0 flex-col items-center gap-1.5 self-center">
         <span
           className={[
-            "rounded-md px-2 py-1 font-num text-xs tabular-nums",
-            overLimit ? "bg-danger/20 text-danger" : "bg-surface-700/70 text-ink-500",
+            "rounded-full px-3 py-1 text-xs font-semibold tabular-nums",
+            overLimit
+              ? "bg-danger/20 text-danger ring-1 ring-danger/50"
+              : "bg-surface-700 text-ink-300",
           ].join(" ")}
           title={
             overLimit
@@ -95,49 +96,49 @@ export function HandDock({
           {total} card{total === 1 ? "" : "s"}
           {overLimit ? " · at risk" : ""}
         </span>
-
-        {devCards.length > 0 && (
-          <ul className="flex flex-wrap gap-1" aria-label="Your development cards">
-            {devCards.map(([kind, entry]) => (
-              <li
-                key={kind}
-                className={[
-                  "flex items-center gap-1 rounded-md border px-1.5 py-1 text-[11px]",
-                  entry.playable > 0
-                    ? "border-accent/55 bg-accent/12 text-accent"
-                    : "border-surface-600 bg-surface-700/60 text-ink-500",
-                ].join(" ")}
-                title={
-                  entry.playable > 0
-                    ? "Playable this turn"
-                    : "Bought this turn, or you have already played a card"
-                }
-              >
-                <CardBackIcon className="h-3.5 w-3.5" />
-                {devCardLabel(kind)}
-                {entry.total > 1 ? ` ×${String(entry.total)}` : ""}
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
+
+      {devCards.length > 0 && (
+        <ul className="flex items-end gap-2" aria-label="Your development cards">
+          {devCards.map(([kind, entry]) => (
+            <li
+              key={kind}
+              title={`${DEV_CARD_TITLE[kind]} — ${DEV_CARD_TEXT[kind]}${
+                entry.playable > 0
+                  ? " Playable this turn."
+                  : kind === "victoryPoint"
+                    ? ""
+                    : " Not playable yet: bought this turn, or you have already played a card."
+              }`}
+              className={[
+                "parchment relative flex h-[92px] w-[66px] shrink-0 flex-col overflow-hidden rounded-[10px] border",
+                entry.playable > 0
+                  ? "animate-[glow-pulse_2.4s_ease-in-out_infinite] border-gold"
+                  : "border-parchment-400/70",
+              ].join(" ")}
+            >
+              <span
+                className="m-1 mb-0 flex flex-1 items-center justify-center rounded-[7px] p-1"
+                style={{ background: DEV_CARD_FIELD[kind] }}
+              >
+                <DevCardArt kind={kind} />
+              </span>
+              <span className="px-0.5 py-1 text-center text-[9px] leading-tight font-semibold tracking-[0.06em] text-quill-700 uppercase">
+                {DEV_CARD_TITLE[kind]}
+              </span>
+              {entry.total > 1 && (
+                <span className="absolute top-0.5 right-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-quill-900 px-1 font-num text-xs font-bold text-parchment-50">
+                  ×{entry.total}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
 
 export function devCardLabel(kind: string): string {
-  switch (kind) {
-    case "knight":
-      return "Knight";
-    case "roadBuilding":
-      return "Road Building";
-    case "yearOfPlenty":
-      return "Year of Plenty";
-    case "monopoly":
-      return "Monopoly";
-    case "victoryPoint":
-      return "Victory Point";
-    default:
-      return kind;
-  }
+  return DEV_CARD_TITLE[kind as DevCardKind] ?? kind;
 }

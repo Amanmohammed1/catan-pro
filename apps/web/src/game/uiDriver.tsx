@@ -8,6 +8,10 @@ import { HotSeatGame } from "./HotSeatGame.js";
  * `drive` takes whatever the screen currently offers and clicks it, preferring
  * progress. It is the UI equivalent of the random-legal bot: if any phase fails
  * to expose a usable control, it returns false and the test fails.
+ *
+ * Controls are found by `data-action`, never by label or class name, so
+ * restyling and rewording the interface cannot break the tests (CLAUDE.md,
+ * Conventions).
  */
 
 export function mountGame(
@@ -36,6 +40,11 @@ export function button(el: HTMLElement, label: string): HTMLButtonElement | unde
   );
 }
 
+/** A control by its data-action, within the controls panel. */
+export function action(el: HTMLElement, name: string): HTMLButtonElement | null {
+  return panel(el).querySelector<HTMLButtonElement>(`button[data-action="${name}"]`);
+}
+
 export function text(el: HTMLElement): string {
   return el.textContent ?? "";
 }
@@ -52,7 +61,7 @@ export function panel(el: HTMLElement): HTMLElement {
   return el.querySelector<HTMLElement>('[data-panel="actions"]') ?? el;
 }
 
-/** The phase the controls panel is currently showing. */
+/** The phase the screen is currently showing. */
 export function phase(el: HTMLElement): string {
   return el.querySelector("[data-prompt]")?.getAttribute("data-prompt") ?? "";
 }
@@ -90,13 +99,20 @@ export function completeSetupInUi(el: HTMLElement): void {
  * experience.
  */
 export function drive(el: HTMLElement): boolean {
-  const tryBuild = (label: string): boolean => {
-    const b = button(panel(el), label);
-    if (b === undefined || b.disabled) return false;
-    click(b);
+  const take = (name: string): boolean => {
+    const control = action(el, name);
+    if (control === null || control.disabled) return false;
+    click(control);
+    return true;
+  };
+
+  const tryBuild = (name: string): boolean => {
+    const control = action(el, name);
+    if (control === null || control.disabled) return false;
+    click(control);
     const target = firstPlacement(el);
     if (target === null) {
-      click(b); // nothing offered; switch the mode back off
+      click(control); // nothing offered; switch the mode back off
       return false;
     }
     click(target);
@@ -105,18 +121,10 @@ export function drive(el: HTMLElement): boolean {
 
   const here = phase(el);
 
-  const roll = button(panel(el), "Roll the dice");
-  if (roll !== undefined) {
-    click(roll);
-    return true;
-  }
+  if (take("roll")) return true;
 
   if (here === "discard") {
-    const confirm = button(panel(el), "Discard");
-    if (confirm !== undefined && !confirm.disabled) {
-      click(confirm);
-      return true;
-    }
+    if (take("discard")) return true;
     const plus = [...el.querySelectorAll("button")].find(
       (b) => (b.getAttribute("aria-label") ?? "").startsWith("one more") && !b.disabled,
     );
@@ -135,16 +143,8 @@ export function drive(el: HTMLElement): boolean {
   }
 
   if (here === "steal") {
-    const controls = panel(el);
-    const steal =
-      button(controls, "Continue") ??
-      [...controls.querySelectorAll("button")].find((b) =>
-        (b.textContent ?? "").includes("cards"),
-      );
-    if (steal !== undefined) {
-      click(steal);
-      return true;
-    }
+    if (take("steal")) return true;
+    if (take("continue")) return true;
   }
 
   if (here === "roadBuilding") {
@@ -153,58 +153,25 @@ export function drive(el: HTMLElement): boolean {
       click(edge);
       return true;
     }
-    const cont = button(panel(el), "continue");
-    if (cont !== undefined) {
-      click(cont);
-      return true;
-    }
+    if (take("continue")) return true;
   }
 
   if (here === "tradeOffer") {
-    const controls = panel(el);
-    const answer = button(controls, "Decline") ?? button(controls, "Withdraw offer");
-    if (answer !== undefined) {
-      click(answer);
-      return true;
-    }
+    if (take("decline")) return true;
+    if (take("withdraw")) return true;
   }
 
   if (here === "main") {
-    if (tryBuild("City")) return true;
-    if (tryBuild("Settlement")) return true;
-    if (tryBuild("Road")) return true;
-
+    if (tryBuild("build-city")) return true;
+    if (tryBuild("build-settlement")) return true;
+    if (tryBuild("build-road")) return true;
     // Convert surplus into something useful before giving up on the turn.
-    const bank = [...panel(el).querySelectorAll("details")].find((d) =>
-      (d.textContent ?? "").startsWith("Give "),
-    );
-    if (bank !== undefined) {
-      bank.open = true;
-      const trade = bank.querySelector<HTMLButtonElement>("button");
-      if (trade !== null) {
-        click(trade);
-        return true;
-      }
-    }
-
-    const end = button(panel(el), "End turn");
-    if (end !== undefined) {
-      click(end);
-      return true;
-    }
+    if (take("bank-trade")) return true;
+    if (take("end-turn")) return true;
   }
 
-  const end = button(panel(el), "End turn");
-  if (end !== undefined) {
-    click(end);
-    return true;
-  }
-
-  const cont = button(panel(el), "continue");
-  if (cont !== undefined) {
-    click(cont);
-    return true;
-  }
+  if (take("end-turn")) return true;
+  if (take("continue")) return true;
 
   return false;
 }

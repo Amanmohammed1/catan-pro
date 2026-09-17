@@ -4,20 +4,33 @@ import type { Terrain } from "@hexport/engine";
 /**
  * Board colours.
  *
- * These mirror the terrain tokens in theme.css so the 3D board and the DOM
- * legend cannot drift apart. Colour is never the only signal: every tile also
- * carries its number token and a label in the inspector, and every player piece
- * is identified by name in the strip as well as by hue.
+ * Tuned for the scene's warm key light rather than copied from theme.css: the
+ * same hex reads several shades darker on a lit, textured tile than on a flat
+ * DOM swatch. Colour is never the only signal — every tile also carries a
+ * painted texture, props, its number token and a label in the placement list,
+ * and every player is identified by name and avatar shape as well as hue.
  */
 export const TERRAIN_COLOR: Record<Terrain, string> = {
-  hill: "#b4653a",
-  forest: "#2f6b3f",
-  pasture: "#86c169",
-  field: "#e0bd4d",
-  mountain: "#8e939b",
-  desert: "#ddcd9f",
+  hill: "#c0683d",
+  forest: "#356b33",
+  pasture: "#93c35c",
+  field: "#e3b945",
+  mountain: "#8e959e",
+  desert: "#e3cf9d",
   gold: "#f0c200",
   sea: "#2f6f9f",
+};
+
+/** The darker earth showing on a tile's bevelled sides. */
+export const TERRAIN_SIDE: Record<Terrain, string> = {
+  hill: "#7d3f22",
+  forest: "#2a4a22",
+  pasture: "#5b7f36",
+  field: "#9c7a25",
+  mountain: "#5a6068",
+  desert: "#b39d68",
+  gold: "#a88400",
+  sea: "#1f4d70",
 };
 
 export const TERRAIN_LABEL: Record<Terrain, string> = {
@@ -32,19 +45,20 @@ export const TERRAIN_LABEL: Record<Terrain, string> = {
 };
 
 /**
- * Seat colours.
+ * Seat colours, the familiar board-game set. They stay distinguishable for the
+ * common colour-vision deficiencies by leaning on lightness (white and blue
+ * against red and orange) and by every piece carrying a dark outline; the DOM
+ * adds a unique avatar shape per seat.
  *
- * Chosen to stay distinct under deuteranopia and protanopia: the red and green
- * of a normal board-game palette collapse together, so this leans on lightness
- * and on blue/orange separation instead of red/green.
+ * Mirrors DEFAULT_COLORS in the engine, which is what the server sends.
  */
 export const SEAT_COLORS: readonly string[] = [
-  "#e2574c", // vermilion
-  "#3f86d9", // azure
-  "#eda43a", // amber
-  "#f2f0ea", // bone
-  "#2fa37a", // teal
-  "#9b6dd6", // violet
+  "#d8412f", // red
+  "#2f6fd0", // blue
+  "#f08a24", // orange
+  "#f3eee2", // white
+  "#3c9a4c", // green
+  "#8d5bd0", // purple
 ];
 
 const cache = new Map<string, THREE.Color>();

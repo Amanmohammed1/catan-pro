@@ -72,8 +72,8 @@ export function Robber({
   if (target === null) return null;
 
   return (
-    <mesh ref={mesh} geometry={geometry} castShadow position={target}>
-      <meshStandardMaterial color="#25221f" roughness={0.4} metalness={0.25} />
+    <mesh ref={mesh} geometry={geometry} castShadow position={target} raycast={() => null}>
+      <meshStandardMaterial color="#35302c" roughness={0.42} metalness={0.2} />
     </mesh>
   );
 }
