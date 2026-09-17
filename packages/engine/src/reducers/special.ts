@@ -76,6 +76,9 @@ export function checkVictory(state: GameState): Recomputed {
   // A Special Building window is not your turn: reaching the target while
   // building in one does not win until your own turn comes round (ADR 0006).
   if (state.phase.k === "specialBuild") return { state, events: [] };
+  // Nor is taking a gold field's card: production pays every player, so the
+  // holder of this phase is often not the player whose turn it is.
+  if (state.phase.k === "gainGold") return { state, events: [] };
 
   const player = state.currentPlayer;
   const points = victoryPoints(state, player);

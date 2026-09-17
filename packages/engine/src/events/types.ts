@@ -172,6 +172,16 @@ export type GameEvent =
       readonly from: EdgeId;
       readonly to: EdgeId;
     }
+  | {
+      readonly e: "goldOwed";
+      /** Cards each player may choose, from gold fields that produced (p.2). */
+      readonly owed: Readonly<Record<PlayerId, number>>;
+    }
+  | {
+      readonly e: "goldTaken";
+      readonly player: PlayerId;
+      readonly resource: ResourceKind;
+    }
   | { readonly e: "gameEnded"; readonly winner: PlayerId; readonly points: number };
 
 export type EventKind = GameEvent["e"];

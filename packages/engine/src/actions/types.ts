@@ -116,6 +116,18 @@ export type Action =
       readonly player: PlayerId;
       readonly from: EdgeId;
       readonly to: EdgeId;
+    }
+  /**
+   * Take one card owed by a gold field (Seafarers p.2).
+   *
+   * One action per card rather than a single multi-card choice: it keeps the
+   * enumeration in `legalMoves()` small and lets the bank be re-checked between
+   * picks, since an earlier pick can empty it.
+   */
+  | {
+      readonly t: "takeGold";
+      readonly player: PlayerId;
+      readonly resource: ResourceKind;
     };
 
 export type ActionKind = Action["t"];

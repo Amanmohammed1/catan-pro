@@ -308,6 +308,18 @@ export function legalMoves(state: GameState, player: PlayerId): Action[] {
       return out;
     }
 
+    case "gainGold": {
+      // Seafarers p.2: one card of your choice per gold field owed. Enumerated
+      // one card at a time, and only what the bank can actually pay — an
+      // earlier pick may have emptied it.
+      if (phase.player !== player) return [];
+      return RESOURCE_KINDS.filter((kind) => state.bank[kind] > 0).map((resource) => ({
+        t: "takeGold" as const,
+        player,
+        resource,
+      }));
+    }
+
     case "specialBuild": {
       // The 5–6 Special Building Phase: build and buy, nothing else. No trade
       // of any kind and no development card may be played (ADR 0006).

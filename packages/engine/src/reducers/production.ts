@@ -27,6 +27,15 @@ export interface ProductionResult {
   readonly gains: Record<PlayerId, ResourceCounts>;
   readonly bank: ResourceCounts;
   readonly shortages: ResourceKind[];
+  /**
+   * Cards owed by gold fields, per player, still to be chosen (Seafarers p.2).
+   *
+   * Kept apart from `gains` rather than folded in, because the bank shortage
+   * rule on p.10 allocates one resource *kind* at a time and a gold pick has no
+   * kind until the player names it. These are handed out after the ordinary
+   * production is paid, in the `gainGold` phase.
+   */
+  readonly goldOwed: Readonly<Record<PlayerId, number>>;
 }
 
 /**
@@ -39,22 +48,33 @@ export function computeProduction(state: GameState, total: number): ProductionRe
   // Step 1: what every player is owed, ignoring the bank.
   const owed = new Map<PlayerId, ResourceCounts>();
   for (const seat of state.players) owed.set(seat.id, emptyResources());
+  const goldOwed: Record<PlayerId, number> = {};
 
   for (const tile of Object.values(state.board.tiles)) {
     if (tile.number !== total) continue;
     if (tile.id === state.robber) continue; // p.5: the robber prevents it
 
+    // Seafarers p.2: a gold field pays a card of the player's choice, so it is
+    // counted rather than credited. The pirate does not block production; only
+    // the robber does, and it never stands on a sea hex.
+    const isGold = tile.terrain === "gold";
     const resource = terrainResource(tile.terrain);
-    if (resource === null) continue;
+    if (resource === null && !isGold) continue;
 
     for (const nodeId of tile.nodes) {
       const building = state.buildings[nodeId];
       if (building === undefined) continue;
 
       const amount = building.kind === "city" ? 2 : 1;
+
+      if (isGold) {
+        goldOwed[building.player] = (goldOwed[building.player] ?? 0) + amount;
+        continue;
+      }
+
       const current = owed.get(building.player);
       if (current === undefined) continue;
-      current[resource] += amount;
+      current[resource as ResourceKind] += amount;
     }
   }
 
@@ -95,7 +115,22 @@ export function computeProduction(state: GameState, total: number): ProductionRe
     // Otherwise nobody receives any of this resource this turn.
   }
 
-  return { gains, bank, shortages };
+  return { gains, bank, shortages, goldOwed };
+}
+
+/**
+ * The gold picks a roll owes, in seat order.
+ *
+ * Seat order rather than turn order: production pays everyone, and a fixed
+ * order keeps the phase deterministic (golden rule 4).
+ */
+export function goldQueue(
+  result: ProductionResult,
+): { readonly player: PlayerId; readonly count: number }[] {
+  return Object.entries(result.goldOwed)
+    .map(([player, count]) => ({ player: Number(player), count }))
+    .filter((entry) => entry.count > 0)
+    .sort((a, b) => a.player - b.player);
 }
 
 /** Apply a production result to the players and the bank. */

@@ -86,6 +86,7 @@ export const actionSchema = z.discriminatedUnion("t", [
   // engine still refuses them unless the scenario loaded the module.
   z.object({ t: z.literal("buildShip"), player, edge: id }),
   z.object({ t: z.literal("moveShip"), player, from: id, to: id }),
+  z.object({ t: z.literal("takeGold"), player, resource }),
 ]);
 
 export type WireAction = z.infer<typeof actionSchema>;

@@ -36,6 +36,7 @@ import { nextInt } from "../rng/sfc32.js";
 import {
   applyProduction,
   computeProduction,
+  goldQueue,
   returnToBank,
   setupYield,
 } from "./production.js";
@@ -46,6 +47,7 @@ import type { Phase } from "../phases/types.js";
 import type { ResourceKind } from "../scenario/types.js";
 import {
   COSTS,
+  RESOURCE_KINDS,
   totalResources,
   type DevCardHolding,
   type DevCardKind,
@@ -121,6 +123,41 @@ function beginNextTurn(state: GameState): GameState {
       playedDevCardThisTurn: false,
       movedShipThisTurn: false,
     })),
+  };
+}
+
+/** One player's outstanding gold picks. */
+interface GoldDebt {
+  readonly player: PlayerId;
+  readonly count: number;
+}
+
+/**
+ * The phase a gold queue leads to: the next player owed a card, or main.
+ *
+ * Used for both entering the phase after a roll and advancing it after a card
+ * is taken, so the awkward case is answered in one place.
+ *
+ * That case is an empty bank. `legalMoves()` offers only resources the bank
+ * actually holds, so a gold window left open over an empty bank would offer no
+ * move at all and stall the turn outright. Rules p.10 already says production
+ * the supply cannot pay is lost; the same answer applies to a choice, so the
+ * queue is abandoned rather than left unanswerable.
+ */
+function nextGoldPhase(state: GameState, queue: readonly GoldDebt[]): Phase {
+  if (RESOURCE_KINDS.every((kind) => state.bank[kind] <= 0)) {
+    return { k: "main" };
+  }
+
+  const index = queue.findIndex((debt) => debt.count > 0);
+  if (index === -1) return { k: "main" };
+
+  const debt = queue[index] as GoldDebt;
+  return {
+    k: "gainGold",
+    player: debt.player,
+    remaining: debt.count,
+    queue: queue.slice(index + 1),
   };
 }
 
@@ -414,6 +451,22 @@ export function reduce(state: GameState, action: Action): ReduceResult {
         gains: production.gains,
         shortages: production.shortages,
       });
+
+      // Seafarers p.2: gold fields owe a card of the player's choice, so the
+      // turn pauses while those are taken. Everyone who is owed picks, not just
+      // the player whose turn it is, which is why the phase names its holder.
+      const gold = goldQueue(production);
+      if (gold.length > 0) {
+        events.push({ e: "goldOwed", owed: production.goldOwed });
+        // nextGoldPhase, not the first entry directly: an empty bank has to
+        // send the turn straight on to main rather than open a window with no
+        // legal move in it.
+        return {
+          ok: true,
+          state: { ...next, phase: nextGoldPhase(next, gold) },
+          events,
+        };
+      }
 
       next = { ...next, phase: { k: "main" } };
       return { ok: true, state: next, events };
@@ -1217,6 +1270,48 @@ export function reduce(state: GameState, action: Action): ReduceResult {
         ok: true,
         state: next,
         events: [{ e: "turnStarted", player: next.currentPlayer, turn: next.turn }],
+      };
+    }
+
+    // ---- Seafarers gold fields, p.2 ---------------------------------------
+    case "takeGold": {
+      if (phase.k !== "gainGold") {
+        return reject(action, "No gold field is owed.");
+      }
+      if (phase.player !== action.player) {
+        return reject(action, "Not your card to take.");
+      }
+      if (state.bank[action.resource] <= 0) {
+        return reject(action, "The bank has none of that resource.");
+      }
+
+      let next = updateSeat(state, action.player, (s) => ({
+        ...s,
+        resources: addResources(s.resources, singleResource(action.resource)),
+      }));
+      next = {
+        ...next,
+        bank: subtractResources(next.bank, singleResource(action.resource)),
+      };
+
+      // This player's remaining debt goes back to the head of the queue, so one
+      // rule decides who is next whether or not they still owe cards.
+      next = {
+        ...next,
+        phase: nextGoldPhase(next, [
+          { player: phase.player, count: phase.remaining - 1 },
+          ...phase.queue,
+        ]),
+      };
+
+      const settled = settle(next);
+      return {
+        ok: true,
+        state: settled.state,
+        events: [
+          { e: "goldTaken", player: action.player, resource: action.resource },
+          ...settled.events,
+        ],
       };
     }
 

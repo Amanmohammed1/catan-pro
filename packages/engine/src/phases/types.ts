@@ -70,6 +70,25 @@ export type Phase =
     }
   /** Trade and build freely (p.4). */
   | { readonly k: "main" }
+  /**
+   * Seafarers gold fields: take the resources you have earned, one at a time.
+   *
+   * Seafarers p.2: "Each player with a settlement on a gold field hex that
+   * produces this turn receives 1 resource card of their choice... a player
+   * receives 2 resource cards in any combination for each of their cities on
+   * that hex." A choice cannot be paid out silently, so it becomes a phase and
+   * `legalMoves()` enumerates it, exactly as Year of Plenty is enumerated.
+   *
+   * `remaining` counts the cards still owed to `player`. `queue` holds the
+   * other players owed picks from the same roll, in seat order — production is
+   * not limited to the player whose turn it is.
+   */
+  | {
+      readonly k: "gainGold";
+      readonly player: PlayerId;
+      readonly remaining: number;
+      readonly queue: readonly { readonly player: PlayerId; readonly count: number }[];
+    }
   /** A domestic trade offer is open for responses (p.4, p.7). */
   | {
       readonly k: "tradeOffer";
