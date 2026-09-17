@@ -87,6 +87,7 @@ export const actionSchema = z.discriminatedUnion("t", [
   z.object({ t: z.literal("buildShip"), player, edge: id }),
   z.object({ t: z.literal("moveShip"), player, from: id, to: id }),
   z.object({ t: z.literal("takeGold"), player, resource }),
+  z.object({ t: z.literal("movePirate"), player, tile: id }),
 ]);
 
 export type WireAction = z.infer<typeof actionSchema>;

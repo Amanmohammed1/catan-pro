@@ -195,29 +195,48 @@ function enterRobber(
   };
 }
 
-/** After the robber lands: choose a victim, or skip when there is none (p.5). */
+/**
+ * After the robber or the pirate lands: choose a victim, or skip if there is
+ * none (p.5).
+ *
+ * The two differ only in where the victims come from. The robber takes from
+ * players with a building on its hex; the pirate from players with a *ship* on
+ * its hex (Seafarers p.2). Everything after that — the random card, the return
+ * to the interrupted phase — is the same, so it is one function rather than two.
+ */
 function enterSteal(
   state: GameState,
   by: PlayerId,
   returnTo: "roll" | "main",
+  from: "robber" | "pirate",
 ): { readonly state: GameState; readonly events: GameEvent[] } {
   const targets = new Set<PlayerId>();
 
-  for (const nodeId of state.board.tiles[state.robber]?.nodes ?? []) {
-    const building = state.buildings[nodeId];
-    if (building === undefined) continue;
-    if (building.player === by) continue;
-    // p.8: "If that player has no cards, you get nothing!" A player with an
-    // empty hand is not a useful target and is not offered.
-    const seat = seatOf(state, building.player);
-    if (seat === undefined || totalResources(seat.resources) === 0) continue;
-    targets.add(building.player);
+  // p.8: "If that player has no cards, you get nothing!" A player with an empty
+  // hand is not a useful target and is not offered, whichever piece is moving.
+  const consider = (player: PlayerId): void => {
+    if (player === by) return;
+    const seat = seatOf(state, player);
+    if (seat === undefined || totalResources(seat.resources) === 0) return;
+    targets.add(player);
+  };
+
+  if (from === "robber") {
+    for (const nodeId of state.board.tiles[state.robber]?.nodes ?? []) {
+      const building = state.buildings[nodeId];
+      if (building !== undefined) consider(building.player);
+    }
+  } else if (state.pirate !== null) {
+    for (const edgeId of state.board.tiles[state.pirate]?.edges ?? []) {
+      const ship = state.ships[edgeId];
+      if (ship !== undefined) consider(ship.player);
+    }
   }
 
   const list = [...targets].sort((a, b) => a - b);
 
   return {
-    state: { ...state, phase: { k: "steal", by, targets: list, returnTo } },
+    state: { ...state, phase: { k: "steal", by, targets: list, returnTo, from } },
     events: [],
   };
 }
@@ -535,7 +554,40 @@ export function reduce(state: GameState, action: Action): ReduceResult {
         },
       ];
 
-      const steal = enterSteal(moved, action.player, phase.returnTo);
+      const steal = enterSteal(moved, action.player, phase.returnTo, "robber");
+      return {
+        ok: true,
+        state: steal.state,
+        events: [...events, ...steal.events],
+      };
+    }
+
+    // ---- the pirate, Seafarers p.2 ----------------------------------------
+    case "movePirate": {
+      if (phase.k !== "moveRobber") return reject(action, "Not moving a piece.");
+      if (phase.by !== action.player) return reject(action, "Not your move.");
+
+      const tile = state.board.tiles[action.tile];
+      if (tile === undefined) return reject(action, "No such hex.");
+      // p.2: "Move the pirate to the frame or to a new sea hex."
+      if (tile.slot !== "sea") {
+        return reject(action, "The pirate only sails on sea hexes.");
+      }
+      if (action.tile === state.pirate) {
+        return reject(action, "The pirate must move to a different hex.");
+      }
+
+      const moved: GameState = { ...state, pirate: action.tile };
+      const events: GameEvent[] = [
+        {
+          e: "pirateMoved",
+          player: action.player,
+          from: state.pirate,
+          to: action.tile,
+        },
+      ];
+
+      const steal = enterSteal(moved, action.player, phase.returnTo, "pirate");
       return {
         ok: true,
         state: steal.state,
@@ -569,7 +621,12 @@ export function reduce(state: GameState, action: Action): ReduceResult {
       }
 
       if (!phase.targets.includes(action.target)) {
-        return reject(action, "That player is not adjacent to the robber.");
+        return reject(
+          action,
+          phase.from === "pirate"
+            ? "That player has no ship on the pirate's hex."
+            : "That player is not adjacent to the robber.",
+        );
       }
 
       const victim = seatOf(state, action.target);

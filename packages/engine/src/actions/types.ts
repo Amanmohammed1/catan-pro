@@ -128,7 +128,15 @@ export type Action =
       readonly t: "takeGold";
       readonly player: PlayerId;
       readonly resource: ResourceKind;
-    };
+    }
+  /**
+   * Move the pirate instead of the robber (Seafarers p.2).
+   *
+   * Offered wherever `moveRobber` is: a 7, or a Knight card, which p.3 restates
+   * as "Activate the Robber or the Pirate". The pirate goes to a sea hex and
+   * steals from a player with a *ship* there, not a building.
+   */
+  | { readonly t: "movePirate"; readonly player: PlayerId; readonly tile: TileId };
 
 export type ActionKind = Action["t"];
 

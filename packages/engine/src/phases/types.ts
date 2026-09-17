@@ -61,12 +61,20 @@ export type Phase =
       /** Phase to return to once the robber resolves. */
       readonly returnTo: "roll" | "main";
     }
-  /** Choose a victim among players with a building on the robber's hex (p.5). */
+  /**
+   * Choose a victim (p.5).
+   *
+   * `from` says which piece put us here, because the two draw their victims
+   * from different places: the robber from players with a building on its hex,
+   * the pirate from players with a *ship* on its hex (Seafarers p.2). Recording
+   * it keeps the refusal messages honest and lets a client say which it is.
+   */
   | {
       readonly k: "steal";
       readonly by: PlayerId;
       readonly targets: readonly PlayerId[];
       readonly returnTo: "roll" | "main";
+      readonly from: "robber" | "pirate";
     }
   /** Trade and build freely (p.4). */
   | { readonly k: "main" }

@@ -353,6 +353,136 @@ describe("building a ship", () => {
   });
 });
 
+describe("the pirate (p.2)", () => {
+  /** A game where seat 0 must move a piece and seat 1 has a ship and cards. */
+  function pirateReady(): { state: GameState; seaTile: string; edge: EdgeId } {
+    const base = intoMainPhase(seaGame(), 0);
+
+    const sea = Object.values(base.board.tiles).find((t) => t.slot === "sea");
+    if (sea === undefined) throw new Error("fixture has no sea hex");
+    const edge = sea.edges[0] as EdgeId;
+
+    let state: GameState = {
+      ...base,
+      turn: 5,
+      // Seat 1 has a ship on that sea hex, and nothing else: the pirate steals
+      // from ship owners, so a player with no building is still a target.
+      ships: { [edge]: { player: 1, builtOnTurn: 0 } },
+      players: base.players.map((s) =>
+        s.id === 1 ? { ...s, pieces: { ...s.pieces, ships: s.pieces.ships - 1 } } : s,
+      ),
+      phase: { k: "moveRobber", by: 0, reason: "seven", returnTo: "main" },
+    };
+    state = giveResources(state, 1, { ore: 2 });
+    return { state, seaTile: sea.id, edge };
+  }
+
+  it("is offered alongside the robber, which keeps to the land", () => {
+    const { state } = pirateReady();
+    const moves = legalMoves(state, 0);
+
+    const pirate = moves.filter((m) => m.t === "movePirate");
+    const robber = moves.filter((m) => m.t === "moveRobber");
+    expect(pirate.length).toBeGreaterThan(0);
+    expect(robber.length).toBeGreaterThan(0);
+
+    // Every robber target is land, every pirate target is sea.
+    for (const move of robber) {
+      if (move.t !== "moveRobber") continue;
+      expect(state.board.tiles[move.tile]?.slot).toBe("land");
+    }
+    for (const move of pirate) {
+      if (move.t !== "movePirate") continue;
+      expect(state.board.tiles[move.tile]?.slot).toBe("sea");
+    }
+  });
+
+  it("is not offered in a base game", () => {
+    const base = completeSetup(newGame(3));
+    const robbing: GameState = {
+      ...base,
+      phase: { k: "moveRobber", by: 0, reason: "seven", returnTo: "main" },
+    };
+    expect(legalMoves(robbing, 0).some((m) => m.t === "movePirate")).toBe(false);
+  });
+
+  it("sails to a sea hex and takes a card from a ship there", () => {
+    const { state, seaTile } = pirateReady();
+
+    const moved = reduce(state, { t: "movePirate", player: 0, tile: seaTile });
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+
+    expect(moved.state.pirate).toBe(seaTile);
+    expect(moved.state.phase.k).toBe("steal");
+    if (moved.state.phase.k !== "steal") return;
+    expect(moved.state.phase.from).toBe("pirate");
+    // Seat 1 owns the only ship on that hex and holds cards.
+    expect(moved.state.phase.targets).toEqual([1]);
+    expect(moved.events.some((e) => e.e === "pirateMoved")).toBe(true);
+
+    const stolen = reduce(moved.state, { t: "steal", player: 0, target: 1 });
+    expect(stolen.ok).toBe(true);
+    if (!stolen.ok) return;
+    expect(stolen.state.players[0]?.resources.ore).toBe(1);
+    expect(stolen.state.players[1]?.resources.ore).toBe(1);
+    assertInvariants(stolen.state, "pirate steal");
+  });
+
+  it("refuses to sail onto the land", () => {
+    const { state } = pirateReady();
+    const land = Object.values(state.board.tiles).find((t) => t.slot === "land");
+    const result = reduce(state, {
+      t: "movePirate",
+      player: 0,
+      tile: land?.id ?? "",
+    });
+    expect(result.ok).toBe(false);
+  });
+
+  it("must actually move once it is on the board", () => {
+    const { state, seaTile } = pirateReady();
+    const parked: GameState = { ...state, pirate: seaTile };
+    const result = reduce(parked, { t: "movePirate", player: 0, tile: seaTile });
+    expect(result.ok).toBe(false);
+    // ...and that hex is no longer offered.
+    expect(
+      legalMoves(parked, 0).some((m) => m.t === "movePirate" && m.tile === seaTile),
+    ).toBe(false);
+  });
+
+  it("is not another player's move to make", () => {
+    const { state, seaTile } = pirateReady();
+    expect(reduce(state, { t: "movePirate", player: 1, tile: seaTile }).ok).toBe(false);
+  });
+
+  it("finds no victim on an empty stretch of water", () => {
+    const { state } = pirateReady();
+    const empty = Object.values(state.board.tiles).find(
+      (t) => t.slot === "sea" && !t.edges.some((e) => state.ships[e] !== undefined),
+    );
+    const moved = reduce(state, {
+      t: "movePirate",
+      player: 0,
+      tile: empty?.id ?? "",
+    });
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    expect(moved.state.phase.k).toBe("steal");
+    if (moved.state.phase.k !== "steal") return;
+    expect(moved.state.phase.targets).toEqual([]);
+  });
+
+  it("blocks ship building on its hex once it lands", () => {
+    const { state, seaTile, edge } = pirateReady();
+    const moved = reduce(state, { t: "movePirate", player: 0, tile: seaTile });
+    expect(moved.ok).toBe(true);
+    if (!moved.ok) return;
+    // p.2: no new ship on an edge of the pirate's hex.
+    expect(canPlaceShip(moved.state, 1, edge)).toBe(false);
+  });
+});
+
 describe("moving a ship", () => {
   /** Build one ship off the settlement, so there is something to move. */
   function withOneShip(): { state: GameState; edge: EdgeId; node: NodeId } {

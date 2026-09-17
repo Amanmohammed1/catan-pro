@@ -182,6 +182,13 @@ export type GameEvent =
       readonly player: PlayerId;
       readonly resource: ResourceKind;
     }
+  | {
+      readonly e: "pirateMoved";
+      readonly player: PlayerId;
+      /** Null the first time the pirate is placed. */
+      readonly from: TileId | null;
+      readonly to: TileId;
+    }
   | { readonly e: "gameEnded"; readonly winner: PlayerId; readonly points: number };
 
 export type EventKind = GameEvent["e"];

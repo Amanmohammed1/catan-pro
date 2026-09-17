@@ -241,9 +241,20 @@ export function legalMoves(state: GameState, player: PlayerId): Action[] {
       if (phase.by !== player) return [];
       // p.11: "The robber must be moved. You may not choose to leave the robber
       // on the same hex."
-      return Object.keys(state.board.tiles)
+      //
+      // Land only. On a base board every hex is land, so this changes nothing
+      // there; on a Seafarers board the robber has no business at sea, and the
+      // pirate covers the water (Seafarers p.2). The pirate's own moves come
+      // from the module, so a game without it sees exactly what it always did.
+      const robber = Object.keys(state.board.tiles)
         .filter((tile) => tile !== state.robber)
+        .filter((tile) => state.board.tiles[tile]?.slot === "land")
         .map((tile) => ({ t: "moveRobber" as const, player, tile }));
+
+      return [
+        ...robber,
+        ...extraLegalMoves(resolveModules(state.config.modules), state, player),
+      ];
     }
 
     case "steal": {

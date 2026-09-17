@@ -107,6 +107,19 @@ export const seafarersModule: RuleModule = {
   },
 
   extraLegalMoves: (state, player): Action[] => {
+    // The pirate is chosen *instead of* the robber, so it belongs to that
+    // phase rather than the Action phase: p.2 for the 7, and p.3 for the Knight
+    // card, which restates it as "Activate the Robber or the Pirate".
+    //
+    // Offered from here rather than from legalMoves() so that a game without
+    // this module sees precisely the move list it always did.
+    if (state.phase.k === "moveRobber") {
+      if (state.phase.by !== player) return [];
+      return Object.values(state.board.tiles)
+        .filter((tile) => tile.slot === "sea" && tile.id !== state.pirate)
+        .map((tile) => ({ t: "movePirate" as const, player, tile: tile.id }));
+    }
+
     // Ships are built and moved in the Action phase (p.2). A Special Building
     // window is not one, and the base game's own build actions are what that
     // window offers.
