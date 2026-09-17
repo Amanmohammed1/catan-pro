@@ -3,7 +3,13 @@ import { seafarersStateOf } from "./seafarers.js";
 import { createGame } from "../setup/createGame.js";
 import { reduce } from "../reducers/reduce.js";
 import { legalMoves } from "../queries/legalMoves.js";
-import { canMoveShip, canPlaceShip, shipSpots } from "../queries/placement.js";
+import {
+  canMoveShip,
+  canPlaceRoad,
+  canPlaceSettlement,
+  canPlaceShip,
+  shipSpots,
+} from "../queries/placement.js";
 import { publicVictoryPoints } from "../queries/scores.js";
 import { assertInvariants } from "../state/invariants.js";
 import {
@@ -283,6 +289,40 @@ describe("where a ship may go (p.2)", () => {
     expect(canPlaceShip(blocked, 0, edge)).toBe(false);
   });
 
+  it("and a road refuses an edge that already carries a ship", () => {
+    // The other half of p.2's "ships and roads may not occupy the same coastal
+    // edge". Only the ship's side was implemented, so a road could be built
+    // onto an occupied edge; the fuzzer hit it on the first seed of the first
+    // Seafarers board, and the ship-placement invariant reported it.
+    //
+    // It has to be a *coast* edge: open sea takes no road at all, so it could
+    // not show the exclusion. `coastalNode` is no use here — it answers "has an
+    // edge a ship could use", and the first such node sits in open water.
+    const base = intoMainPhase(seaGame(), 0);
+
+    let found: { node: NodeId; edge: EdgeId } | null = null;
+    for (const [id, node] of Object.entries(base.board.nodes)) {
+      const coast = node.edges.find((e) => base.board.edges[e]?.kind === "coast");
+      if (coast !== undefined) {
+        found = { node: id, edge: coast };
+        break;
+      }
+    }
+    expect(found).not.toBeNull();
+    if (found === null) return;
+
+    // A settlement of ours makes this a legal road spot to begin with...
+    const state = withSettlement({ ...base, turn: 5 }, 0, found.node);
+    expect(canPlaceRoad(state, 0, found.edge, { setup: false })).toBe(true);
+
+    // ...until a ship takes it.
+    const withShip: GameState = {
+      ...state,
+      ships: { ...state.ships, [found.edge]: { player: 0, builtOnTurn: 0 } },
+    };
+    expect(canPlaceRoad(withShip, 0, found.edge, { setup: false })).toBe(false);
+  });
+
   it("refuses an edge of the pirate's hex", () => {
     const { state, node } = readyToSail();
     const edge = shipEdgeAt(state, node);
@@ -350,6 +390,67 @@ describe("building a ship", () => {
       edge: shipEdgeAt(state, node),
     });
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("settling from a ship", () => {
+  /**
+   * The point of the expansion, and the rule whose absence made 4-player games
+   * unwinnable: every ship spent, no island ever settled, nobody able to reach
+   * fourteen points. `canPlaceSettlement` consulted `roads` alone.
+   */
+  it("lets a ship carry a settlement, exactly as a road does", () => {
+    const { state, node } = readyToSail();
+
+    // Two ships, not one. The far end of a single ship is adjacent to the
+    // settlement it sailed from, so the distance rule refuses it there and
+    // would hide whether the ship connected anything at all.
+    const first = shipEdgeAt(state, node);
+    const a = reduce(state, { t: "buildShip", player: 0, edge: first });
+    expect(a.ok).toBe(true);
+    if (!a.ok) return;
+
+    const mid = state.board.edges[first]?.nodes.find((n) => n !== node);
+    expect(mid).toBeDefined();
+    if (mid === undefined) return;
+
+    const second = shipEdgeAt(a.state, mid, [first]);
+    const b = reduce(a.state, { t: "buildShip", player: 0, edge: second });
+    expect(b.ok).toBe(true);
+    if (!b.ok) return;
+
+    const far = b.state.board.edges[second]?.nodes.find((n) => n !== mid);
+    expect(far).toBeDefined();
+    if (far === undefined) return;
+
+    // Nothing but the two ships reaches that intersection.
+    const funded = giveResources(b.state, 0, {
+      brick: 1,
+      lumber: 1,
+      wool: 1,
+      grain: 1,
+    });
+    expect(canPlaceSettlement(funded, 0, far, { setup: false })).toBe(true);
+    expect(legalMoves(funded, 0).some((m) => m.t === "buildSettlement")).toBe(true);
+  });
+
+  it("still refuses a spot nothing of yours reaches", () => {
+    const { state } = readyToSail();
+    const funded = giveResources(state, 0, {
+      brick: 1,
+      lumber: 1,
+      wool: 1,
+      grain: 1,
+    });
+    // A node on the far side of the board, touched by neither road nor ship.
+    const stranded = Object.keys(funded.board.nodes).find(
+      (id) =>
+        !funded.board.nodes[id]?.edges.some(
+          (e) => funded.roads[e] !== undefined || funded.ships[e] !== undefined,
+        ),
+    );
+    expect(stranded).toBeDefined();
+    expect(canPlaceSettlement(funded, 0, stranded ?? "", { setup: false })).toBe(false);
   });
 });
 

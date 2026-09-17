@@ -171,6 +171,15 @@ export interface ScenarioSetup {
   readonly mode: "snakeDraft";
   readonly rounds: number;
   readonly placeOn: readonly SlotKind[];
+  /**
+   * Islands the opening settlements may go on. Omitted means anywhere.
+   *
+   * Seafarers p.4: "Your starting settlements with roads/ships must be placed
+   * on the main island." Without this a player could open on a small island and
+   * collect its victory points during setup, which is the opposite of the
+   * scenario's intent — the islands are meant to be sailed to.
+   */
+  readonly setupIslands?: readonly string[];
 }
 
 export interface Scenario {

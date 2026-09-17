@@ -30,7 +30,26 @@ export interface GameOutcome {
   readonly turns: number;
   readonly actions: number;
   readonly scores: readonly number[];
+  /**
+   * Nobody could act and nobody had won: the phase machine is stuck.
+   *
+   * Distinct from `exhausted`, and deliberately so. Both leave a game without a
+   * winner, but only this one is a bug in the rules: it means `legalMoves()`
+   * offered nothing to the player whose turn it was. Reporting the two together
+   * — as this did until a Seafarers board produced thirty long games and they
+   * were all labelled stuck — teaches you to wave away the very signal the
+   * check exists to raise.
+   */
   readonly stalled: boolean;
+  /**
+   * The action cap was reached with the game still going.
+   *
+   * CLAUDE.md's "no infinite game", and on a big Seafarers board a real
+   * possibility without anything being wrong: random bots spend most of their
+   * moves shuffling ships and trading with the bank, and the scenario wants 14
+   * points rather than 10.
+   */
+  readonly exhausted: boolean;
 }
 
 export interface SelfPlayOptions {
@@ -94,6 +113,7 @@ export function playOneGame(options: SelfPlayOptions): GameOutcome {
         actions,
         scores: state.players.map((s) => victoryPoints(state, s.id)),
         stalled: true,
+        exhausted: false,
       };
     }
 
@@ -128,20 +148,26 @@ export function playOneGame(options: SelfPlayOptions): GameOutcome {
 
   if (!checkEvery) assertInvariants(state, "end of game");
 
+  // Reaching here means the loop ended on its own terms: either someone won or
+  // the action cap ran out. A stuck machine has already returned above.
   return {
     seed: options.seed,
     winner: state.winner,
     turns: state.turn,
     actions,
     scores: state.players.map((s) => victoryPoints(state, s.id)),
-    stalled: state.winner === null,
+    stalled: false,
+    exhausted: state.winner === null,
   };
 }
 
 export interface FuzzSummary {
   readonly games: number;
   readonly wins: Record<string, number>;
+  /** Games where the phase machine offered no move. Always a bug. */
   readonly stalled: number;
+  /** Games still going when the action cap ran out. Long, not broken. */
+  readonly exhausted: number;
   readonly totalTurns: number;
   readonly totalActions: number;
   readonly longestGame: number;
@@ -162,6 +188,7 @@ export function runFuzz(options: {
   const started = Date.now();
   const wins: Record<string, number> = {};
   let stalled = 0;
+  let exhausted = 0;
   let totalTurns = 0;
   let totalActions = 0;
   let longestGame = 0;
@@ -180,6 +207,7 @@ export function runFuzz(options: {
     const key = outcome.winner === null ? "none" : String(outcome.winner);
     wins[key] = (wins[key] ?? 0) + 1;
     if (outcome.stalled) stalled++;
+    if (outcome.exhausted) exhausted++;
     totalTurns += outcome.turns;
     totalActions += outcome.actions;
     longestGame = Math.max(longestGame, outcome.turns);
@@ -192,6 +220,7 @@ export function runFuzz(options: {
     games: options.games,
     wins,
     stalled,
+    exhausted,
     totalTurns,
     totalActions,
     longestGame,

@@ -109,15 +109,68 @@ scenario also documents a "Variable Setup" whose hex and number-disc
 composition _is_ in the text, and that is what the generator will use. Fixed
 layouts remain a data-only addition if they are ever wanted.
 
+### What the fuzzer found once a Seafarers board existed
+
+ADR 0008 originally recorded that the fuzzer could not reach any of this code,
+because no registered scenario loaded the module. Registering the two Heading
+for New Shores boards closed that gap, and the first run found three defects —
+all of them things the unit tests had been written to confirm rather than to
+challenge.
+
+1. **Roads could be built onto edges already carrying a ship.** p.2's "ships and
+   roads may not occupy the same coastal edge" is a mutual exclusion, and only
+   the ship's half was implemented. The ship-placement invariant caught it on
+   the first seed of the first board.
+
+2. **A ship did not connect a settlement.** `canPlaceSettlement` consulted
+   `roads` alone, so a player could sail anywhere and build nothing — which is
+   the entire expansion. p.3 settles it ("a ship on an adjacent empty sea edge
+   instead of a road"), as does the Longest Route example on p.2, where a
+   settlement is built at the intersection joining a road run to a ship run.
+
+   The symptom was not an exception but an unwinnable game: with the islands
+   unsettleable, the six victory points they carry were unobtainable, and once
+   the mainland saturated nobody could reach fourteen. Four-player games
+   dead-ended this way 14% of the time, every ship spent and no island settled.
+
+3. **The harness could not tell a stuck game from a long one.** `selfPlay`
+   returned `stalled: state.winner === null` on its normal exit, so exhausting
+   the action cap reported identically to a phase machine with no legal move.
+   That is the difference between "the rules are broken" and "these bots are
+   slow", and it very nearly led to the dead ends being written off. The two are
+   now separate outcomes, and the cap is adjustable with `--max-actions`.
+
+The second one deserves a note on method. The obvious response to games hitting
+the action cap was to raise the cap, and doing so would have produced a green
+gate. Running the same seeds at 150,000 actions instead showed the failure rate
+unchanged at 15%, with games reaching thirty thousand turns — which is what
+made it clear they were unwinnable rather than slow, and sent the search
+towards the real bug.
+
 ## Consequences
 
-Ships are covered by 17 unit tests over a purpose-built sea board, and the base
-game is untouched: 552 fast tests pass, all seven packages typecheck, and both
-purity guards still report.
+The base game is untouched, and there is hard evidence for it rather than an
+assurance: its 10,000-game fuzz returns 10,190,192 actions and the same win
+distribution as the run that preceded the first slice of this milestone. Ships,
+gold, the pirate, island scoring and the route rewrite all leave a board that
+loads no module byte-for-byte identical, and the gate that produced each commit
+asserted that figure rather than eyeballing it.
 
-One gap is worth naming. **The fuzzer does not yet exercise ships**, because no
-_registered_ scenario loads the `seafarers` module — the ships fixture is built
-inside its test file. Golden rule 8 is therefore satisfied only for the base
-game and the 5–6 board at this point. The scenario maps in the next slice are
-what make a Seafarers fuzz run possible, and that run is the real acceptance
-bar for this milestone.
+Golden rule 8 now holds for Seafarers as well, which it did not when this ADR
+was first written:
+
+| board                   | games  | stalled | exhausted |
+| ----------------------- | ------ | ------- | --------- |
+| classic-3-4, 4 players  | 10,000 | 0       | 0         |
+| new-shores-4, 4 players | 300    | 0       | 0         |
+| new-shores-3, 3 players | 500    | 0       | 0         |
+
+Wins spread evenly across seats on both new boards, which is the signal that
+neither the island bonuses nor the setup restriction favours a seat.
+
+Deliberately still open: `hiddenStacks` remains unused, and Fog Islands is the
+scenario that needs it — it is also the only one of the four requiring genuine
+redaction, so it brings the `playerView` work with it. Two of the four
+scenarios are not built. And nothing in the client draws a ship, a pirate or a
+gold field yet, so these boards are for the moment playable only by bots and by
+tests.

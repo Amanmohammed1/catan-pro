@@ -154,6 +154,14 @@ export interface GameConfig {
    * invariants need these figures.
    */
   readonly pieces: PieceStock;
+  /**
+   * Islands the opening settlements are confined to, or null for anywhere.
+   *
+   * Copied from the scenario for the same reason as `pieces`: the engine is a
+   * leaf and cannot read a scenario at runtime. Seafarers p.4 keeps the first
+   * settlements on the main island.
+   */
+  readonly setupIslands: readonly string[] | null;
 }
 
 export const DEFAULT_CONFIG: GameConfig = {
@@ -164,6 +172,7 @@ export const DEFAULT_CONFIG: GameConfig = {
   minLargestArmy: 3,
   // Rules p.5: 15 roads, 5 settlements, 4 cities, and no ships in the base box.
   pieces: { roads: 15, settlements: 5, cities: 4, ships: 0 },
+  setupIslands: null,
 };
 
 export interface GameState {

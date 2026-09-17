@@ -150,6 +150,7 @@ export function createGame(options: CreateGameOptions): GameState {
       cities: scenario.pieces.cities,
       ships: scenario.pieces.ships,
     },
+    setupIslands: scenario.setup.setupIslands ?? null,
     ...options.config,
   };
 

@@ -135,6 +135,8 @@ const baseScenario = z.object({
     mode: z.literal("snakeDraft"),
     rounds: z.number().int().min(1),
     placeOn: z.array(slot).min(1),
+    /** Islands the opening settlements are confined to (Seafarers p.4). */
+    setupIslands: z.array(z.string().min(1)).min(1).optional(),
   }),
   islands: z.array(island),
   hiddenStacks: z.array(hiddenStack),

@@ -46,10 +46,29 @@ export function canPlaceSettlement(
   const seat = state.players[player];
   if (seat === undefined || seat.pieces.settlements <= 0) return false;
 
-  if (options.setup) return true;
+  if (options.setup) {
+    // Seafarers p.4: the opening settlements stay on the main island. Null
+    // means the scenario sets no restriction, which is every base-game board.
+    const allowed = state.config.setupIslands;
+    if (allowed === null) return true;
+
+    for (const tileId of state.board.nodes[node]?.tiles ?? []) {
+      const island = state.board.tiles[tileId]?.island;
+      if (island != null && allowed.includes(island)) return true;
+    }
+    return false;
+  }
 
   for (const edgeId of state.board.nodes[node]?.edges ?? []) {
     if (state.roads[edgeId] === player) return true;
+    // A ship connects a settlement exactly as a road does (Seafarers p.2-3:
+    // roads and ships are one route, and setup lets a coastal settlement take
+    // "a ship on an adjacent empty sea edge instead of a road").
+    //
+    // Without this a player can sail anywhere and build nothing, which is the
+    // whole expansion: the fuzzer found 4-player games dead-ending with every
+    // ship spent, no island settled, and nobody able to reach 14 points.
+    if (state.ships[edgeId]?.player === player) return true;
   }
   return false;
 }
@@ -72,11 +91,17 @@ export function canPlaceRoad(
   const graph = state.board.edges[edge];
   if (graph === undefined) return false;
   if (state.roads[edge] !== undefined) return false;
+  // Seafarers p.2: "Ships and roads may not occupy the same coastal edge."
+  // The exclusion runs both ways, and only checking it from the ship's side
+  // let a road be built straight onto an occupied edge — found by the fuzzer
+  // on the first seed of the first Seafarers board it was given.
+  if (state.ships[edge] !== undefined) return false;
 
   const seat = state.players[player];
   if (seat === undefined || seat.pieces.roads <= 0) return false;
 
-  // Base game: roads go on land. Sea and coast edges are Seafarers (M6).
+  // Roads go on land and along the coast, never out to open sea (p.2). A
+  // coastal edge takes either a road or a ship, whichever gets there first.
   if (graph.kind === "sea") return false;
 
   // During setup the road must attach to the settlement just placed (p.12).
