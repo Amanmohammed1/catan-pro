@@ -5,15 +5,40 @@
  * this resolves those names to implementations. Adding an expansion means
  * adding a file here and naming it in a scenario — not editing the reducer
  * (CLAUDE.md golden rule 7).
+ *
+ * Every function below fans one hook out across the loaded modules, in the
+ * order the scenario listed them. That order is the only precedence rule there
+ * is, and it is deliberate: a scenario that loads `["base", "ext56"]` gets the
+ * 5–6 supply because `ext56` is named second. Callers never ask which module
+ * answered.
  */
 
 import { baseModule } from "./base.js";
 import { ext56Module } from "./ext56.js";
+import type { Action, Rejection } from "../actions/types.js";
+import type { GameEvent } from "../events/types.js";
+import type { Phase } from "../phases/types.js";
 import type { GameState, PlayerId } from "../state/types.js";
-import type { Action } from "../actions/types.js";
-import type { RuleModule, Supply, TurnHandoff } from "./types.js";
+import type {
+  DiceRoll,
+  ModuleEffect,
+  ModuleSetupCtx,
+  ModuleState,
+  RuleModule,
+  Supply,
+  TurnHandoff,
+} from "./types.js";
 
-export type { RuleModule, Supply, TurnHandoff } from "./types.js";
+export type {
+  DiceRoll,
+  ModuleEffect,
+  ModuleReducer,
+  ModuleSetupCtx,
+  ModuleState,
+  RuleModule,
+  Supply,
+  TurnHandoff,
+} from "./types.js";
 export { BASE_SUPPLY, baseModule } from "./base.js";
 export { ext56Module } from "./ext56.js";
 
@@ -49,6 +74,24 @@ export function supplyFor(modules: readonly RuleModule[]): Supply {
   return supply;
 }
 
+/**
+ * Every module's opening state slice, keyed by module id.
+ *
+ * A module that keeps no state contributes no key, so a base game carries an
+ * empty record rather than a map of empty objects.
+ */
+export function initialModuleState(
+  modules: readonly RuleModule[],
+  ctx: ModuleSetupCtx,
+): Readonly<Record<string, ModuleState>> {
+  const out: Record<string, ModuleState> = {};
+  for (const module of modules) {
+    const slice = module.setupState?.(ctx);
+    if (slice != null) out[module.id] = slice;
+  }
+  return out;
+}
+
 /** The first module that wants to interpose a phase when a turn ends. */
 export function turnHandoff(
   modules: readonly RuleModule[],
@@ -69,4 +112,99 @@ export function extraLegalMoves(
   player: PlayerId,
 ): Action[] {
   return modules.flatMap((module) => module.extraLegalMoves?.(state, player) ?? []);
+}
+
+/**
+ * Run an action past every module before the reducer judges it.
+ *
+ * A module may rewrite the action or refuse it outright. The first refusal
+ * wins and stops the chain; a rewrite is passed on to the modules after it, so
+ * two modules can each narrow the same action.
+ */
+export function interceptAction(
+  modules: readonly RuleModule[],
+  state: GameState,
+  action: Action,
+): Action | Rejection {
+  let current = action;
+  for (const module of modules) {
+    const result = module.interceptAction?.(state, current);
+    if (result == null) continue;
+    if ("ok" in result) return result;
+    current = result;
+  }
+  return current;
+}
+
+/** Thread an effect-producing hook through every module in order. */
+function fold(
+  modules: readonly RuleModule[],
+  state: GameState,
+  run: (module: RuleModule, state: GameState) => ModuleEffect | null | undefined,
+): ModuleEffect {
+  let current = state;
+  const events: GameEvent[] = [];
+
+  for (const module of modules) {
+    const effect = run(module, current);
+    if (effect == null) continue;
+    current = effect.state;
+    events.push(...effect.events);
+  }
+
+  return { state: current, events };
+}
+
+/** Every module's response to a roll, applied in order. */
+export function onDiceRoll(
+  modules: readonly RuleModule[],
+  state: GameState,
+  roll: DiceRoll,
+): ModuleEffect {
+  return fold(modules, state, (module, current) => module.onDiceRoll?.(current, roll));
+}
+
+/** Every module's response to entering a phase, applied in order. */
+export function onPhaseEnter(
+  modules: readonly RuleModule[],
+  state: GameState,
+  phase: Phase,
+): ModuleEffect {
+  return fold(modules, state, (module, current) =>
+    module.onPhaseEnter?.(current, phase),
+  );
+}
+
+/** Victory points the loaded modules grant this player, over and above the base. */
+export function scoreContribution(
+  modules: readonly RuleModule[],
+  state: GameState,
+  player: PlayerId,
+): number {
+  let total = 0;
+  for (const module of modules) {
+    total += module.scoreContribution?.(state, player) ?? 0;
+  }
+  return total;
+}
+
+/**
+ * Let a module reduce an action it owns.
+ *
+ * Returns null when no module claims the action, which is the reducer's signal
+ * to handle it as a base-game move. A module that claims the kind but finds the
+ * move illegal returns a Rejection, exactly as `reduce()` would.
+ */
+export function moduleReduce(
+  modules: readonly RuleModule[],
+  state: GameState,
+  action: Action,
+): ModuleEffect | Rejection | null {
+  for (const module of modules) {
+    const reducer = module.reducers?.[action.t];
+    if (reducer === undefined) continue;
+    const result = reducer(state, action);
+    if (result != null) return result;
+  }
+  return null;
 }

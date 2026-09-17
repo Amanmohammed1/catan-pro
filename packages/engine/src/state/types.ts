@@ -13,6 +13,7 @@ import type { EdgeId, NodeId, TileId } from "../geometry/ids.js";
 import type { ResourceKind } from "../scenario/types.js";
 import type { RngState } from "../rng/sfc32.js";
 import type { Phase } from "../phases/types.js";
+import type { ModuleState } from "../modules/types.js";
 
 /** Seat index, 0-based. Stable for the life of a match. */
 export type PlayerId = number;
@@ -140,6 +141,16 @@ export interface GameState {
   readonly bank: ResourceCounts;
   /** Face-down draw pile. Order is hidden information; playerView strips it. */
   readonly devDeck: readonly DevCardKind[];
+
+  /**
+   * Per-module state, keyed by module id (ADR 0007).
+   *
+   * Empty for a base game: neither `base` nor `ext56` keeps state. A module
+   * that does — Seafarers tracking settled islands, Cities & Knights tracking
+   * improvement levels and the barbarian ship — declares `setupState` and owns
+   * its slice outright. Nothing outside `modules/` reads a slice by id.
+   */
+  readonly moduleState: Readonly<Record<string, ModuleState>>;
 
   readonly buildings: Readonly<Record<NodeId, Building>>;
   readonly roads: Readonly<Record<EdgeId, PlayerId>>;

@@ -10,7 +10,13 @@
  */
 
 import { buildBoardGraph } from "../geometry/buildBoardGraph.js";
-import { BASE_SUPPLY, resolveModules, supplyFor, type Supply } from "../modules/index.js";
+import {
+  BASE_SUPPLY,
+  initialModuleState,
+  resolveModules,
+  supplyFor,
+  type Supply,
+} from "../modules/index.js";
 import { seedRng, shuffle, type RngState } from "../rng/sfc32.js";
 import type { Scenario } from "../scenario/types.js";
 import type { TileId } from "../geometry/ids.js";
@@ -145,6 +151,7 @@ export function createGame(options: CreateGameOptions): GameState {
     players,
     bank: fullBank(supply),
     devDeck,
+    moduleState: initialModuleState(modules, { scenario, players: order }),
     buildings: {},
     roads: {},
     robber: startingRobberTile(board.tiles),

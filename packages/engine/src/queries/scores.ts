@@ -9,9 +9,18 @@
  * winner, and only the server ever computes it.
  */
 
+import { resolveModules, scoreContribution } from "../modules/index.js";
 import type { GameState, PlayerId, SpecialCard } from "../state/types.js";
 
-/** Points every player can see: buildings plus the two special cards. */
+/**
+ * Points every player can see: buildings, the two special cards, and whatever
+ * the loaded modules grant.
+ *
+ * Module contributions are public by nature — a settlement on a new island and
+ * a metropolis are both on the board — so they belong here rather than in the
+ * hidden half. A base game loads no module that scores, so this is unchanged
+ * for it (ADR 0007).
+ */
 export function publicVictoryPoints(state: GameState, player: PlayerId): number {
   let points = 0;
 
@@ -22,6 +31,8 @@ export function publicVictoryPoints(state: GameState, player: PlayerId): number 
 
   if (state.longestRoad.player === player) points += 2;
   if (state.largestArmy.player === player) points += 2;
+
+  points += scoreContribution(resolveModules(state.config.modules), state, player);
 
   return points;
 }

@@ -25,7 +25,13 @@ import {
   canPlaceSettlement,
 } from "../queries/placement.js";
 import { canPlayDevCard, discardCount } from "../queries/legalMoves.js";
-import { resolveModules, turnHandoff } from "../modules/index.js";
+import {
+  interceptAction,
+  moduleReduce,
+  onDiceRoll,
+  resolveModules,
+  turnHandoff,
+} from "../modules/index.js";
 import { nextInt } from "../rng/sfc32.js";
 import {
   applyProduction,
@@ -218,6 +224,17 @@ export function reduce(state: GameState, action: Action): ReduceResult {
     return reject(action, `No such player: ${String(action.player)}.`);
   }
 
+  // A module may narrow or refuse an action the base rules would allow, before
+  // any of it is judged here (ADR 0007). Cities & Knights needs this for a
+  // knight blocking a road; Seafarers for the pirate blocking ship placement.
+  // A base game loads no module that intercepts, so `action` comes back as-is.
+  const modules = resolveModules(state.config.modules);
+  const intercepted = interceptAction(modules, state, action);
+  if ("ok" in intercepted) {
+    return { ok: false, reason: intercepted.reason, action: intercepted.action };
+  }
+  action = intercepted;
+
   const phase = state.phase;
 
   switch (action.t) {
@@ -372,6 +389,13 @@ export function reduce(state: GameState, action: Action): ReduceResult {
       ];
 
       let next: GameState = { ...state, rng: afterB, dice };
+
+      // Modules see the roll before anything is paid out (ADR 0007). Cities &
+      // Knights marches the barbarian ship here and may resolve an attack
+      // (C&K p.6, p.11). No base-game module answers, so `next` is unchanged.
+      const rolled = onDiceRoll(modules, next, { dice, total });
+      next = rolled.state;
+      events.push(...rolled.events);
 
       if (total === 7) {
         const robber = enterRobber(next, action.player, "seven", "main");
@@ -1178,11 +1202,7 @@ export function reduce(state: GameState, action: Action): ReduceResult {
       // A module may interpose a phase between turns. The 5–6 extension puts
       // the Special Building Phase here; the base game puts nothing.
       const nextPlayer = (state.currentPlayer + 1) % state.players.length;
-      const handoff = turnHandoff(
-        resolveModules(state.config.modules),
-        state,
-        nextPlayer,
-      );
+      const handoff = turnHandoff(modules, state, nextPlayer);
       if (handoff !== null) {
         return {
           ok: true,
@@ -1234,8 +1254,18 @@ export function reduce(state: GameState, action: Action): ReduceResult {
       };
     }
 
-    default:
-      return reject(action, "Unknown action.");
+    default: {
+      // Not a base-game action. A loaded module may own this kind — the
+      // Seafarers ship actions and the Cities & Knights knight actions are
+      // reduced by their own modules (ADR 0007). Falling through to a rejection
+      // is still the answer when nobody claims it.
+      const handled = moduleReduce(modules, state, action);
+      if (handled === null) return reject(action, "Unknown action.");
+      if ("ok" in handled) {
+        return { ok: false, reason: handled.reason, action: handled.action };
+      }
+      return { ok: true, state: handled.state, events: handled.events };
+    }
   }
 }
 
