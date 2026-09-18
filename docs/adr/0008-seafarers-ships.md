@@ -196,8 +196,8 @@ was first written:
 | board                           | games  | stalled | exhausted |
 | ------------------------------- | ------ | ------- | --------- |
 | classic-3-4, 4 players          | 10,000 | 0       | 0         |
-| new-shores-4, 4 players         | 300    | 0       | 0         |
-| new-shores-3, 3 players         | 500    | 0       | 0         |
+| new-shores-4, 4 players         | 10,000 | 0       | 1         |
+| new-shores-3, 3 players         | 10,000 | 0       | 0         |
 | through-the-desert-4, 4 players | 10,000 | 0       | 2         |
 | through-the-desert-3, 3 players | 10,000 | 0       | 0         |
 
@@ -206,19 +206,21 @@ signal that neither the island bonuses nor the setup restriction favours a seat:
 2543/2501/2435/2519 across four seats on Through the Desert, 3400/3271/3329
 across three.
 
-**The two exhausted games are recorded rather than rounded away.** They hit the
-20,000-action cap with no winner, which is 0.02% against a harness threshold of
-10%. That is worth stating precisely because exhaustion is exactly what the
-"ships do not connect settlements" bug looked like — but that ran at 14%, with
-games reaching thirty thousand turns. These two peaked at 4,858 turns on a
-fourteen-point board. Long games, not unwinnable ones. The distinction is only
-visible because `stalled` and `exhausted` are separate outcomes; a harness that
-conflated them would report this identically to a broken phase machine.
+**The three exhausted games are recorded rather than rounded away.** Across
+40,000 Seafarers games, three hit the 20,000-action cap with no winner — two on
+Through the Desert at four players, one on New Shores at four. That is 0.0075%
+against a harness threshold of 10%, and it is worth stating precisely because
+exhaustion is exactly what the "ships do not connect settlements" bug looked
+like. That bug ran at 14%, with games reaching thirty thousand turns; these
+three peaked at 5,015 turns on fourteen-point boards. Long games, not unwinnable
+ones. The distinction is only visible because `stalled` and `exhausted` are
+separate outcomes — a harness that conflated them would report this identically
+to a broken phase machine.
 
-The two Heading for New Shores rows are the original 300- and 500-game runs. A
-10,000-game re-run of both is the outstanding piece of bookkeeping — those
-boards predate the harness threshold and were never held to golden rule 8's
-figure.
+Both Heading for New Shores rows were originally 300- and 500-game runs, made
+before the harness had a threshold at all. They have been re-run at 10,000, so
+every board in this table now meets golden rule 8's figure rather than three of
+five meeting it and two being grandfathered in.
 
 The client now draws these boards: the sea renders as water rather than as
 blue land, ships and the pirate are on the board, gold fields have controls,

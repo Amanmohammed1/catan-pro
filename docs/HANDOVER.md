@@ -331,8 +331,8 @@ pnpm bots --players 6 --bots 5
 
 ```bash
 pnpm verify        # lint, typecheck, both purity guards, both test lanes
-pnpm test          # fast lane, 598 tests, ~11s
-pnpm test:slow     # whole-game runs over real sockets, ~14s
+pnpm test          # fast lane, 655 tests, ~21s
+pnpm test:slow     # whole-game runs over real sockets, ~30s
 pnpm shots         # headless screenshots into .shots/ — then look at them
 pnpm shots --scenario new-shores-4 --turns 400   # a Seafarers board, played on
 
@@ -365,14 +365,21 @@ pnpm exec prettier --ignore-path /dev/null --write packages/scenarios/data
 ## 7. Current numbers
 
 ```
-fast lane     598 tests in 25 files, ~11s
-slow lane       9 tests, ~14s
+fast lane     655 tests in 26 files, ~21s
+slow lane      17 tests in 6 files, ~30s
 fuzz          classic  10,000 games, 10.19M actions, 0 stalled, ~114s
               5 players 10,000 games, 19.48M actions, 0 stalled, ~214s
               6 players 10,000 games, 22.39M actions, 0 stalled, ~278s
-              wins spread evenly across every seat in all three
+              new-shores-4   10,000 games, 17.14M actions, 0 stalled, 1 exhausted
+              new-shores-3   10,000 games, 17.55M actions, 0 stalled
+              desert-4       10,000 games, 18.83M actions, 0 stalled, 2 exhausted
+              desert-3       10,000 games, 19.21M actions, 0 stalled
+              wins spread evenly across every seat on all seven
+              Seafarers boards run at ~3 games/s, so each takes about an hour
 board         classic 19 tiles / 54 nodes / 72 edges / 9 harbours
               5-6     30 tiles / 80 nodes / 109 edges / 11 harbours
+              new-shores-4   46 cells (28 land, 18 sea), 9 harbours
+              desert-4       48 cells (30 land, 18 sea), 9 harbours
 ```
 
 ---
