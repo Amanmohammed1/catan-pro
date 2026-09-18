@@ -57,6 +57,21 @@ export function Lobby({
   );
 }
 
+/**
+ * The name of a board, from its id.
+ *
+ * Falls back to the id rather than throwing: a server may be running a scenario
+ * this client does not know about, and a room that shows a bare id is far
+ * better than a lobby that will not render.
+ */
+function boardName(scenarioId: string): string {
+  try {
+    return loadScenario(scenarioId).name;
+  } catch {
+    return scenarioId;
+  }
+}
+
 /** A faint field of hexes behind the panel. Decorative. */
 function Backdrop(): React.JSX.Element {
   return (
@@ -341,6 +356,12 @@ function RoomPanel({
         <p className="eyebrow">Room code</p>
         <p className="font-display text-4xl font-bold tracking-[0.22em] text-gold">
           {room.code}
+        </p>
+        {/* Which board this room is on. The host chose it before the room
+            existed and everyone else never saw that choice, so without this a
+            joiner has no way to know they are about to play Seafarers. */}
+        <p data-room-board={room.scenarioId} className="mt-1 text-xs text-ink-500">
+          {boardName(room.scenarioId)}
         </p>
         <div className="mt-1.5 flex items-center justify-center gap-2 text-xs text-ink-500">
           <span>
