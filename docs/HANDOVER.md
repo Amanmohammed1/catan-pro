@@ -4,8 +4,8 @@ Written for a session with no memory of how any of this got here. Read this
 before CLAUDE.md if you are picking the project up cold; CLAUDE.md says what the
 rules are, this says what is actually true.
 
-Branch: `m5-five-six`, cut from `m3-3d-client`. `main` is at the end of M2. M3
-and M5 are complete and committed, but nothing has been merged.
+Branch: `m6-seafarers`, cut from `m4-polish`. `main` is at the end of M2. M3,
+M4, M5 and most of M6 are complete and committed, but nothing has been merged.
 
 ---
 
@@ -80,7 +80,30 @@ a terminal. Both use the same policy in `packages/bots`, so they cannot drift.
 - A stolen card does not physically fly between player cards; the theft is
   announced, sounded and logged.
 
-M6 (Seafarers) onward: not started.
+### M6 — Seafarers: mostly complete
+
+The rule module interface was widened first (ADR 0007), then the mechanics:
+ships, the pirate, gold fields, island victory points, and a Longest Route that
+counts roads and ships joined at your own buildings. Heading for New Shores is
+built for both player counts, generated from the rulebook's Variable Setup
+tables rather than transcribed from its diagrams (ADR 0008).
+
+The client draws all of it — the sea renders as water rather than as blue land,
+ships float on it, the pirate sails — and `?hotseat=1&scenario=new-shores-4`
+reaches a board without a server.
+
+Registering those boards let the fuzzer reach the Seafarers rules for the first
+time and it found three defects at once: roads could be laid on edges already
+carrying a ship, a ship did not connect a settlement (which made games
+unwinnable rather than merely wrong), and the harness could not tell a stuck
+game from a long one. All three are fixed; ADR 0008 records them.
+
+**Not done:** Four Islands, Fog Islands and Through the Desert. Fog Islands is
+the one with teeth — it needs `hiddenStacks`, which is the only genuine
+redaction work left in the milestone. `startingPieces` is declared, validated
+and ignored, and Seafarers p.3 needs it.
+
+M7 (Cities & Knights) onward: not started.
 
 ---
 
@@ -129,7 +152,13 @@ scripts/                board generation, purity guards, screenshots
 
 ## 3. Decisions you would not guess from the code
 
-Six ADRs, in `docs/adr/`. The three newest matter most:
+Eight ADRs, in `docs/adr/`. The newest matter most:
+
+- **0007** — widening the rule module interface, and why expansion actions stay
+  in the engine's central unions rather than the unions being made open.
+- **0008** — Seafarers as implemented: ships, the open-end rule, island points
+  derived rather than tracked, the boards coming from the Variable Setup
+  tables, and the three bugs the first fuzz run found.
 
 - **0004** — the board is painted in code, not shipped as art. No binary assets,
   OFL fonts from npm, and a local Lightformer environment rather than drei's
@@ -287,7 +316,7 @@ pnpm bots --players 6 --bots 5
 
 ```bash
 pnpm verify        # lint, typecheck, both purity guards, both test lanes
-pnpm test          # fast lane, 519 tests, ~11s
+pnpm test          # fast lane, 598 tests, ~11s
 pnpm test:slow     # whole-game runs over real sockets, ~14s
 pnpm shots         # headless screenshots into .shots/ — then look at them
 pnpm shots --scenario new-shores-4 --turns 400   # a Seafarers board, played on
@@ -321,7 +350,7 @@ pnpm exec prettier --ignore-path /dev/null --write packages/scenarios/data
 ## 7. Current numbers
 
 ```
-fast lane     519 tests in 22 files, ~11s
+fast lane     598 tests in 25 files, ~11s
 slow lane       9 tests, ~14s
 fuzz          classic  10,000 games, 10.19M actions, 0 stalled, ~114s
               5 players 10,000 games, 19.48M actions, 0 stalled, ~214s

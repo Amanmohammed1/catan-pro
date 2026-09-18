@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { PLAYABLE_SCENARIO_IDS, loadScenario } from "@hexport/scenarios";
 import { Avatar } from "../ui/Avatar.js";
 import { Button } from "../ui/Button.js";
 import { Wordmark } from "../ui/Wordmark.js";
@@ -59,7 +60,10 @@ export function Lobby({
 /** A faint field of hexes behind the panel. Decorative. */
 function Backdrop(): React.JSX.Element {
   return (
-    <div aria-hidden="true" className="pointer-events-none absolute inset-0 opacity-[0.07]">
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute inset-0 opacity-[0.07]"
+    >
       <svg width="100%" height="100%">
         <defs>
           <pattern id="hexes" width="56" height="97" patternUnits="userSpaceOnUse">
@@ -102,6 +106,26 @@ function JoinForm({
   });
   const [seats, setSeats] = useState(4);
   const [bots, setBots] = useState(0);
+  const [board, setBoard] = useState<string | null>(null);
+
+  /**
+   * Boards this seat count can actually play.
+   *
+   * Filtered rather than listed flat, because the ranges genuinely differ: the
+   * Seafarers three-player map seats exactly three, the 5–6 island needs five.
+   * Offering a board the server would refuse is worse than not offering it.
+   */
+  const boards = useMemo(
+    () =>
+      PLAYABLE_SCENARIO_IDS.map((id) => ({ id, scenario: loadScenario(id) })).filter(
+        ({ scenario }) =>
+          seats >= scenario.players.min && seats <= scenario.players.max,
+      ),
+    [seats],
+  );
+
+  // A board chosen for one seat count may not survive a change of mind.
+  const chosen = boards.some((b) => b.id === board) ? board : null;
 
   const named = nickname.trim() !== "";
   // You take one seat; the rest can be bots, or left open for people.
@@ -192,13 +216,59 @@ function JoinForm({
         </p>
       </Field>
 
+      {boards.length > 1 && (
+        <Field label="Board" htmlFor="board">
+          <div
+            className="flex flex-col gap-1.5"
+            role="radiogroup"
+            aria-labelledby="board-label"
+          >
+            {boards.map(({ id, scenario }) => {
+              const picked = chosen === null ? boards[0]?.id === id : chosen === id;
+              const seafaring = scenario.modules.includes("seafarers");
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={picked}
+                  data-board={id}
+                  title={
+                    seafaring
+                      ? `${scenario.name} — ships, gold fields and the pirate; ${String(scenario.victoryPoints)} points to win`
+                      : `${scenario.name} — ${String(scenario.victoryPoints)} points to win`
+                  }
+                  onClick={() => {
+                    setBoard(id);
+                  }}
+                  className={[
+                    "rounded-[11px] border px-3 py-2 text-left text-sm transition-colors",
+                    picked
+                      ? "border-gold/60 bg-gold/15 text-gold"
+                      : "border-gold/15 bg-surface-700/60 text-ink-300 hover:bg-surface-600",
+                  ].join(" ")}
+                >
+                  {scenario.name}
+                  <span className="ml-2 text-[11px] opacity-70">
+                    {scenario.victoryPoints} points
+                    {seafaring ? " · ships" : ""}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+      )}
+
       <Button
         intent="primary"
         data-action="create-room"
         disabled={!named}
         reason="Enter a name first"
         onClick={() => {
-          net.createRoom(nickname.trim(), seats, wanted);
+          // Null means "whatever suits this seat count", which is the server's
+          // own default — so it is sent as nothing at all.
+          net.createRoom(nickname.trim(), seats, wanted, chosen ?? undefined);
         }}
         className="justify-center"
       >
@@ -355,11 +425,7 @@ function RoomPanel({
 
       <div className="flex flex-col gap-1.5">
         {isHost && room.seats.length < room.maxPlayers && (
-          <Button
-            data-action="add-bot"
-            onClick={net.addBot}
-            className="justify-center"
-          >
+          <Button data-action="add-bot" onClick={net.addBot} className="justify-center">
             Add a bot
           </Button>
         )}
@@ -399,7 +465,12 @@ function RoomPanel({
           </p>
         )}
 
-        <Button intent="ghost" data-action="leave" onClick={net.leave} className="justify-center">
+        <Button
+          intent="ghost"
+          data-action="leave"
+          onClick={net.leave}
+          className="justify-center"
+        >
           Leave
         </Button>
       </div>
@@ -407,7 +478,11 @@ function RoomPanel({
   );
 }
 
-function Divider({ children }: { readonly children: React.ReactNode }): React.JSX.Element {
+function Divider({
+  children,
+}: {
+  readonly children: React.ReactNode;
+}): React.JSX.Element {
   return (
     <div className="my-3 flex items-center gap-2 text-[10px] font-semibold tracking-[0.12em] text-ink-700 uppercase">
       <span className="h-px flex-1 bg-gold/15" />

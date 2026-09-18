@@ -227,8 +227,17 @@ export function useConnection(url: string, options: ConnectionOptions = {}) {
   }, [url, onMessage, tokenKey]);
 
   const createRoom = useCallback(
-    (nickname: string, playerCount: number, bots = 0) => {
-      send({ t: "createRoom", nickname, playerCount, bots });
+    (nickname: string, playerCount: number, bots = 0, scenarioId?: string) => {
+      // Omitted rather than sent as undefined: the server falls back to the
+      // board that suits the seat count, which is what a room with no chosen
+      // scenario should get.
+      send({
+        t: "createRoom",
+        nickname,
+        playerCount,
+        bots,
+        ...(scenarioId === undefined ? {} : { scenarioId }),
+      });
     },
     [send],
   );
