@@ -274,7 +274,7 @@ function totalOf(counts) {
   return Object.values(counts).reduce((sum, n) => sum + n, 0);
 }
 
-function buildNewShores({
+function buildIslandBoard({
   id,
   name,
   players,
@@ -284,6 +284,7 @@ function buildNewShores({
   smallBag,
   discs,
   ports,
+  victoryPoints,
 }) {
   const main = mainShape;
   const sea = shell(main);
@@ -341,7 +342,7 @@ function buildNewShores({
     name,
     schemaVersion: 1,
     players,
-    victoryPoints: 14,
+    victoryPoints,
     modules: ["base", "seafarers"],
     layout: { orientation: "pointy" },
     cells,
@@ -370,10 +371,11 @@ function buildNewShores({
 
 // ---------------------------------------------------------------------------
 
-const fourPlayer = buildNewShores({
+const fourPlayer = buildIslandBoard({
   id: "new-shores-4",
   name: "Heading for New Shores",
   players: { min: 3, max: 4 },
+  victoryPoints: 14,
   // 19 hexes: the classic island.
   mainShape: hexDisc(2),
   clusterSizes: [2, 5, 2],
@@ -405,10 +407,11 @@ const fourPlayer = buildNewShores({
   ],
 });
 
-const threePlayer = buildNewShores({
+const threePlayer = buildIslandBoard({
   id: "new-shores-3",
   name: "Heading for New Shores, three players",
   players: { min: 3, max: 3 },
+  victoryPoints: 14,
   // 14 hexes, rows of 3-4-4-3.
   mainShape: rowShape([
     [-1, 0, 3],
@@ -443,11 +446,120 @@ const threePlayer = buildNewShores({
   ],
 });
 
+// ---------------------------------------------------------------------------
+// Through the Desert (p.10 fixed, p.11 variable).
+//
+// The same shape as New Shores as far as this generator is concerned: a main
+// island the opening settlements must sit on, and unexplored regions worth 2 VP
+// apiece for a first settlement. What differs is the composition — three
+// deserts sit *in* the main island, splitting it, and the gold is out among the
+// regions.
+//
+// One rule from p.11 is not modelled: "do not place red number discs on gold
+// fields". The scenario format has no way to say "this terrain may not take
+// these values", and inventing one for a single line would be a poor trade. It
+// makes gold slightly better here than the printed board intends.
+// ---------------------------------------------------------------------------
+
+const desertFour = buildIslandBoard({
+  id: "through-the-desert-4",
+  name: "Through the Desert",
+  players: { min: 3, max: 4 },
+  victoryPoints: 14,
+  mainShape: hexDisc(2),
+  clusterSizes: [2, 4, 3, 2],
+  // Land, exactly as p.11 lists it: 2 gold, 5 of each terrain, 3 deserts — 30
+  // hexes. The rulebook also prints 12 sea, but that count belongs to its own
+  // fixed island outline; ours are generated, so the frame of water around them
+  // is whatever the shape needs and comes out larger (ADR 0008).
+  mainBag: { desert: 3, hill: 4, forest: 4, pasture: 3, field: 3, mountain: 2 },
+  smallBag: { gold: 2, hill: 1, forest: 1, pasture: 2, field: 2, mountain: 3 },
+  discs: [
+    { value: 2, count: 1 },
+    { value: 3, count: 3 },
+    { value: 4, count: 3 },
+    { value: 5, count: 3 },
+    { value: 6, count: 3 },
+    { value: 8, count: 3 },
+    { value: 9, count: 3 },
+    { value: 10, count: 3 },
+    { value: 11, count: 3 },
+    { value: 12, count: 2 },
+  ],
+  ports: [
+    GENERIC,
+    two("grain"),
+    GENERIC,
+    two("ore"),
+    two("wool"),
+    GENERIC,
+    two("brick"),
+    two("lumber"),
+    GENERIC,
+  ],
+});
+
+const desertThree = buildIslandBoard({
+  id: "through-the-desert-3",
+  name: "Through the Desert, three players",
+  players: { min: 3, max: 3 },
+  victoryPoints: 14,
+  mainShape: rowShape([
+    [-1, 0, 3],
+    [0, -1, 4],
+    [1, -2, 4],
+    [2, -2, 3],
+  ]),
+  clusterSizes: [2, 4, 3, 2],
+  // Land, exactly as p.10 lists it: 2 gold, 3 hills, 5 forest, 4 pasture,
+  // 4 fields, 4 mountains, 3 deserts — 25 hexes. The 10 sea it prints belongs
+  // to the rulebook's own fixed outline, not to this generated one (ADR 0008).
+  mainBag: { desert: 3, hill: 2, forest: 3, pasture: 2, field: 2, mountain: 2 },
+  smallBag: { gold: 2, hill: 1, forest: 2, pasture: 2, field: 2, mountain: 2 },
+  discs: [
+    { value: 2, count: 1 },
+    { value: 3, count: 2 },
+    { value: 4, count: 3 },
+    { value: 5, count: 3 },
+    { value: 6, count: 3 },
+    { value: 8, count: 3 },
+    { value: 9, count: 3 },
+    { value: 10, count: 2 },
+    { value: 11, count: 1 },
+    { value: 12, count: 1 },
+  ],
+  ports: [
+    GENERIC,
+    two("grain"),
+    two("ore"),
+    GENERIC,
+    two("wool"),
+    two("brick"),
+    GENERIC,
+    two("lumber"),
+  ],
+});
+
+// ---------------------------------------------------------------------------
+// The Four Islands is deliberately absent.
+//
+// p.6: "Your starting settlements may be placed on one island or two different
+// islands. These location(s) are your home islands... Each player may have
+// different home and unexplored islands."
+//
+// A scenario here pins one vpForFirstSettlement per island, the same for
+// everyone, so a player who started on an island would be paid for settling it.
+// Generating the board anyway would produce one that scores wrongly, which is
+// worse than not having it. It needs per-player home islands first — derivable
+// if a building recorded the turn it was placed, since setup is turn 0 — and
+// that is a rules change, not a data one. ADR 0008 carries the note.
+// ---------------------------------------------------------------------------
+
 const here = dirname(fileURLToPath(import.meta.url));
 const outDir = join(here, "..", "packages", "scenarios", "data");
 mkdirSync(outDir, { recursive: true });
 
-for (const scenario of [threePlayer, fourPlayer]) {
+for (const scenario of [threePlayer, fourPlayer, desertThree, desertFour]) {
   const outFile = join(outDir, `${scenario.id}.json`);
   writeFileSync(outFile, `${JSON.stringify(scenario, null, 2)}\n`);
 

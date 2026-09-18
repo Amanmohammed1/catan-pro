@@ -1,0 +1,522 @@
+{
+  "id": "through-the-desert-4",
+  "name": "Through the Desert",
+  "schemaVersion": 1,
+  "players": {
+    "min": 3,
+    "max": 4
+  },
+  "victoryPoints": 14,
+  "modules": ["base", "seafarers"],
+  "layout": {
+    "orientation": "pointy"
+  },
+  "cells": [
+    {
+      "coord": [-2, 0],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [-2, 1],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [-2, 2],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [-1, -1],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [-1, 0],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [-1, 1],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [-1, 2],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [0, -2],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [0, -1],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [0, 0],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [0, 1],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [0, 2],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [1, -2],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [1, -1],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [1, 0],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [1, 1],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [2, -2],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [2, -1],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [2, 0],
+      "slot": "land",
+      "bag": "main",
+      "island": "main"
+    },
+    {
+      "coord": [-2, -1],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [-3, 0],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [-3, 1],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [-3, 2],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [-3, 3],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [-2, 3],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [-1, -2],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [-1, 3],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [1, -3],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [0, -3],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [1, 2],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [0, 3],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [2, -3],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [2, 1],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [3, -2],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [3, -3],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [3, -1],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [3, 0],
+      "slot": "sea",
+      "terrain": "sea"
+    },
+    {
+      "coord": [-3, -1],
+      "slot": "land",
+      "bag": "small",
+      "island": "isle-a"
+    },
+    {
+      "coord": [-2, -2],
+      "slot": "land",
+      "bag": "small",
+      "island": "isle-a"
+    },
+    {
+      "coord": [3, -4],
+      "slot": "land",
+      "bag": "small",
+      "island": "isle-b"
+    },
+    {
+      "coord": [4, -4],
+      "slot": "land",
+      "bag": "small",
+      "island": "isle-b"
+    },
+    {
+      "coord": [4, -3],
+      "slot": "land",
+      "bag": "small",
+      "island": "isle-b"
+    },
+    {
+      "coord": [4, -2],
+      "slot": "land",
+      "bag": "small",
+      "island": "isle-b"
+    },
+    {
+      "coord": [3, 1],
+      "slot": "land",
+      "bag": "small",
+      "island": "isle-c"
+    },
+    {
+      "coord": [2, 2],
+      "slot": "land",
+      "bag": "small",
+      "island": "isle-c"
+    },
+    {
+      "coord": [1, 3],
+      "slot": "land",
+      "bag": "small",
+      "island": "isle-c"
+    },
+    {
+      "coord": [-3, 4],
+      "slot": "land",
+      "bag": "small",
+      "island": "isle-d"
+    },
+    {
+      "coord": [-4, 4],
+      "slot": "land",
+      "bag": "small",
+      "island": "isle-d"
+    }
+  ],
+  "bags": {
+    "main": {
+      "terrain": [
+        {
+          "terrain": "desert",
+          "count": 3
+        },
+        {
+          "terrain": "hill",
+          "count": 4
+        },
+        {
+          "terrain": "forest",
+          "count": 4
+        },
+        {
+          "terrain": "pasture",
+          "count": 3
+        },
+        {
+          "terrain": "field",
+          "count": 3
+        },
+        {
+          "terrain": "mountain",
+          "count": 2
+        }
+      ]
+    },
+    "small": {
+      "terrain": [
+        {
+          "terrain": "gold",
+          "count": 2
+        },
+        {
+          "terrain": "hill",
+          "count": 1
+        },
+        {
+          "terrain": "forest",
+          "count": 1
+        },
+        {
+          "terrain": "pasture",
+          "count": 2
+        },
+        {
+          "terrain": "field",
+          "count": 2
+        },
+        {
+          "terrain": "mountain",
+          "count": 3
+        }
+      ]
+    }
+  },
+  "numbers": {
+    "mode": "bag",
+    "tokens": [
+      {
+        "value": 2,
+        "count": 1
+      },
+      {
+        "value": 3,
+        "count": 3
+      },
+      {
+        "value": 4,
+        "count": 3
+      },
+      {
+        "value": 5,
+        "count": 3
+      },
+      {
+        "value": 6,
+        "count": 3
+      },
+      {
+        "value": 8,
+        "count": 3
+      },
+      {
+        "value": 9,
+        "count": 3
+      },
+      {
+        "value": 10,
+        "count": 3
+      },
+      {
+        "value": 11,
+        "count": 3
+      },
+      {
+        "value": 12,
+        "count": 2
+      }
+    ],
+    "path": [
+      [-3, -1],
+      [-1, -1],
+      [-2, -2],
+      [0, -2],
+      [1, -2],
+      [3, -4],
+      [2, -2],
+      [4, -4],
+      [4, -3],
+      [2, -1],
+      [4, -2],
+      [2, 0],
+      [3, 1],
+      [2, 2],
+      [1, 1],
+      [1, 3],
+      [0, 2],
+      [-1, 2],
+      [-3, 4],
+      [-4, 4],
+      [-2, 2],
+      [-2, 1],
+      [-2, 0],
+      [0, -1],
+      [1, -1],
+      [1, 0],
+      [0, 1],
+      [-1, 1],
+      [-1, 0],
+      [0, 0]
+    ],
+    "skipTerrains": ["desert", "sea"],
+    "constraints": {
+      "noAdjacentRedNumbers": true
+    }
+  },
+  "ports": [
+    {
+      "at": [-2, 0],
+      "edgeDir": 2,
+      "kind": "generic",
+      "ratio": 3
+    },
+    {
+      "at": [0, -2],
+      "edgeDir": 3,
+      "kind": "resource",
+      "resource": "grain",
+      "ratio": 2
+    },
+    {
+      "at": [1, -2],
+      "edgeDir": 1,
+      "kind": "generic",
+      "ratio": 3
+    },
+    {
+      "at": [2, -2],
+      "edgeDir": 0,
+      "kind": "resource",
+      "resource": "ore",
+      "ratio": 2
+    },
+    {
+      "at": [2, 0],
+      "edgeDir": 1,
+      "kind": "resource",
+      "resource": "wool",
+      "ratio": 2
+    },
+    {
+      "at": [1, 1],
+      "edgeDir": 5,
+      "kind": "generic",
+      "ratio": 3
+    },
+    {
+      "at": [0, 2],
+      "edgeDir": 4,
+      "kind": "resource",
+      "resource": "brick",
+      "ratio": 2
+    },
+    {
+      "at": [-2, 2],
+      "edgeDir": 5,
+      "kind": "resource",
+      "resource": "lumber",
+      "ratio": 2
+    },
+    {
+      "at": [-2, 1],
+      "edgeDir": 3,
+      "kind": "generic",
+      "ratio": 3
+    }
+  ],
+  "pieces": {
+    "roads": 15,
+    "settlements": 5,
+    "cities": 4,
+    "ships": 15
+  },
+  "setup": {
+    "mode": "snakeDraft",
+    "rounds": 2,
+    "placeOn": ["land"],
+    "setupIslands": ["main"]
+  },
+  "islands": [
+    {
+      "id": "main",
+      "vpForFirstSettlement": 0
+    },
+    {
+      "id": "isle-a",
+      "vpForFirstSettlement": 2
+    },
+    {
+      "id": "isle-b",
+      "vpForFirstSettlement": 2
+    },
+    {
+      "id": "isle-c",
+      "vpForFirstSettlement": 2
+    },
+    {
+      "id": "isle-d",
+      "vpForFirstSettlement": 2
+    }
+  ],
+  "hiddenStacks": [],
+  "startingPieces": []
+}

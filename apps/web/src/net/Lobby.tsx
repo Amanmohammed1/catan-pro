@@ -28,7 +28,7 @@ export function Lobby({
         <div className="mb-6 text-center">
           <Wordmark size="lg" />
           <p className="mt-2 text-sm text-ink-300">
-            Settle an island. Trade shrewdly. Ten points wins.
+            Settle an island. Trade shrewdly. Most points wins.
           </p>
           <p className="mt-1 text-xs text-ink-700">
             Three to six players, online or around one screen.

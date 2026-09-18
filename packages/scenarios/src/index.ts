@@ -13,6 +13,8 @@ import classic34 from "../data/classic-3-4.json" with { type: "json" };
 import classic56 from "../data/classic-5-6.json" with { type: "json" };
 import newShores3 from "../data/new-shores-3.json" with { type: "json" };
 import newShores4 from "../data/new-shores-4.json" with { type: "json" };
+import desert3 from "../data/through-the-desert-3.json" with { type: "json" };
+import desert4 from "../data/through-the-desert-4.json" with { type: "json" };
 import tinyIsland from "../data/fixtures/tiny-island.json" with { type: "json" };
 import twoIslands from "../data/fixtures/two-islands.json" with { type: "json" };
 
@@ -23,6 +25,8 @@ const RAW: Readonly<Record<string, unknown>> = {
   "classic-5-6": classic56,
   "new-shores-3": newShores3,
   "new-shores-4": newShores4,
+  "through-the-desert-3": desert3,
+  "through-the-desert-4": desert4,
   "tiny-island": tinyIsland,
   "two-islands": twoIslands,
 };
@@ -39,6 +43,8 @@ export const PLAYABLE_SCENARIO_IDS: readonly string[] = [
   "classic-5-6",
   "new-shores-3",
   "new-shores-4",
+  "through-the-desert-3",
+  "through-the-desert-4",
 ];
 
 /** Every scenario id, fixtures included. */

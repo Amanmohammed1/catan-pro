@@ -55,7 +55,25 @@ own home island, so "unexplored" is per player. A scenario pins one
 `vpForFirstSettlement` per island, which fits Heading for New Shores and Through
 the Desert but not Four Islands. Supporting it needs either a per-player home
 island in the scenario format or a module that records each player's starting
-island during setup. That is a Phase 2 decision and is not made here.
+island during setup.
+
+That decision has now been taken, in the only direction that keeps the boards
+honest: **Four Islands is not generated.** p.6 is explicit — "Your starting
+settlements with roads/ships may be placed on one island or two different
+islands. These location(s) are your home islands. The remaining islands are
+unexplored for you. Each player may have different home and unexplored
+islands." With one global value per island, a player who opened on an island
+would be paid two points for settling it, and every player would be paid for the
+same three islands regardless of where they began. The board would load, build,
+fuzz clean and score wrongly, which is worse than not having it: a missing
+scenario is visible, a mis-scoring one is not.
+
+The cheapest honest route to it, when it is wanted, is to record on each
+building the turn it was placed — setup is turn 0 — and let the Seafarers module
+derive each player's home islands as the ones they hold a turn-0 building on.
+That is a change to the building record and to `scoreContribution`, not to the
+scenario format, and it is a rules change rather than the data change the other
+three scenarios are.
 
 ### The open-end test subsumes the "two buildings" clause
 
@@ -109,6 +127,22 @@ scenario also documents a "Variable Setup" whose hex and number-disc
 composition _is_ in the text, and that is what the generator will use. Fixed
 layouts remain a data-only addition if they are ever wanted.
 
+### Through the Desert fits the model; one of its rules does not
+
+Through the Desert (p.10 fixed, p.11 variable) needed no new mechanism. It is a
+main island the opening settlements must sit on, plus unexplored regions worth
+two points apiece — structurally the same board as Heading for New Shores, with
+three deserts splitting the main island and both gold fields out among the
+regions. It is data through the same generator.
+
+One printed rule is **not** modelled: p.11's "Do not place red number discs on
+gold fields." The scenario format can say which terrains take no number at all
+(`numbers.skipTerrains`, which is how deserts stay bare) but not which values a
+terrain may not take. Adding a per-terrain value exclusion for one line in one
+scenario would be a new concept in the format earning its keep once. The
+consequence is stated rather than hidden: gold is slightly stronger on our
+Through the Desert than on the printed one, because a 6 or an 8 can land on it.
+
 ### What the fuzzer found once a Seafarers board existed
 
 ADR 0008 originally recorded that the fuzzer could not reach any of this code,
@@ -159,14 +193,32 @@ asserted that figure rather than eyeballing it.
 Golden rule 8 now holds for Seafarers as well, which it did not when this ADR
 was first written:
 
-| board                   | games  | stalled | exhausted |
-| ----------------------- | ------ | ------- | --------- |
-| classic-3-4, 4 players  | 10,000 | 0       | 0         |
-| new-shores-4, 4 players | 300    | 0       | 0         |
-| new-shores-3, 3 players | 500    | 0       | 0         |
+| board                           | games  | stalled | exhausted |
+| ------------------------------- | ------ | ------- | --------- |
+| classic-3-4, 4 players          | 10,000 | 0       | 0         |
+| new-shores-4, 4 players         | 300    | 0       | 0         |
+| new-shores-3, 3 players         | 500    | 0       | 0         |
+| through-the-desert-4, 4 players | 10,000 | 0       | 2         |
+| through-the-desert-3, 3 players | 10,000 | 0       | 0         |
 
-Wins spread evenly across seats on both new boards, which is the signal that
-neither the island bonuses nor the setup restriction favours a seat.
+Wins spread evenly across seats on every one of these boards, which is the
+signal that neither the island bonuses nor the setup restriction favours a seat:
+2543/2501/2435/2519 across four seats on Through the Desert, 3400/3271/3329
+across three.
+
+**The two exhausted games are recorded rather than rounded away.** They hit the
+20,000-action cap with no winner, which is 0.02% against a harness threshold of
+10%. That is worth stating precisely because exhaustion is exactly what the
+"ships do not connect settlements" bug looked like — but that ran at 14%, with
+games reaching thirty thousand turns. These two peaked at 4,858 turns on a
+fourteen-point board. Long games, not unwinnable ones. The distinction is only
+visible because `stalled` and `exhausted` are separate outcomes; a harness that
+conflated them would report this identically to a broken phase machine.
+
+The two Heading for New Shores rows are the original 300- and 500-game runs. A
+10,000-game re-run of both is the outstanding piece of bookkeeping — those
+boards predate the harness threshold and were never held to golden rule 8's
+figure.
 
 The client now draws these boards: the sea renders as water rather than as
 blue land, ships and the pirate are on the board, gold fields have controls,
@@ -184,9 +236,9 @@ Deliberately still open:
   sea edge instead of a road" — so it will have to be implemented rather than
   removed. Worth knowing before trusting the field: it is declared, accepted
   and ignored.
-- **Two of the four scenarios are not built** (Four Islands, Through the
-  Desert), and the lobby has no scenario picker, so online play still chooses a
-  board by seat count alone.
+- **Four Islands is not built**, and the section above says why it is a rules
+  change rather than a data one. It is the only one of the four deliberately
+  declined.
 
 ### A note on checking the picture
 

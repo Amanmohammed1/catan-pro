@@ -82,11 +82,15 @@ a terminal. Both use the same policy in `packages/bots`, so they cannot drift.
 
 ### M6 — Seafarers: mostly complete
 
-The rule module interface was widened first (ADR 0007), then the mechanics:
+See `docs/milestones/M6.md`. The rule module interface was widened first
+(ADR 0007), then the mechanics:
 ships, the pirate, gold fields, island victory points, and a Longest Route that
-counts roads and ships joined at your own buildings. Heading for New Shores is
-built for both player counts, generated from the rulebook's Variable Setup
-tables rather than transcribed from its diagrams (ADR 0008).
+counts roads and ships joined at your own buildings. Heading for New Shores and
+Through the Desert are built for both player counts, generated from the
+rulebook's Variable Setup tables rather than transcribed from its diagrams
+(ADR 0008), and `packages/scenarios/src/seafarers-board.test.ts` checks each one
+against the rulebook's own composition table rather than merely checking it
+parses.
 
 The client draws all of it — the sea renders as water rather than as blue land,
 ships float on it, the pirate sails — and `?hotseat=1&scenario=new-shores-4`
@@ -98,10 +102,13 @@ carrying a ship, a ship did not connect a settlement (which made games
 unwinnable rather than merely wrong), and the harness could not tell a stuck
 game from a long one. All three are fixed; ADR 0008 records them.
 
-**Not done:** Four Islands, Fog Islands and Through the Desert. Fog Islands is
-the one with teeth — it needs `hiddenStacks`, which is the only genuine
-redaction work left in the milestone. `startingPieces` is declared, validated
-and ignored, and Seafarers p.3 needs it.
+**Not done:** Fog Islands and Four Islands, for two different reasons. Fog
+Islands needs `hiddenStacks`, which is the only genuine redaction work left in
+the milestone. Four Islands is **declined rather than pending**: p.6 gives every
+player their own home islands, and a scenario pins one `vpForFirstSettlement`
+per island for everyone, so generating it would produce a board that scores
+wrongly while looking fine. ADR 0008 says what it would take. `startingPieces`
+is declared, validated and ignored, and Seafarers p.3 needs it.
 
 M7 (Cities & Knights) onward: not started.
 
@@ -258,6 +265,14 @@ about two attempts in five on the classic board but one in twenty-five on the
 **Generated data is Prettier-formatted, and the directory is Prettier-ignored.**
 Regenerate the boards and you get a 200-line whitespace diff unless you follow
 with `prettier --ignore-path /dev/null --write packages/scenarios/data`.
+
+**Never pipe a long background run through `tail`.** The fuzzer and
+`pnpm shots` both print progress as they go, and `… | tail -16` buffers all of
+it until the process exits — so an hour-long run looks identical to a wedged
+one, and the only signals left are `ps` cpu-time and file mtimes. A Seafarers
+fuzz at 10,000 games takes around an hour (they run at ~3 games/s against
+classic's 34), which is long enough that the difference matters. Redirect
+instead, and read the tail of the file when you want a checkpoint.
 
 **Test drivers that match text against the whole screen will wedge.** Scope to
 `[data-panel="actions"]` and key off `[data-prompt]`.
