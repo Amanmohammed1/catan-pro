@@ -217,7 +217,7 @@ actually look at the output.
 
 **A guessed rulebook is worse than a missing one.** The 5–6 extension's lettered
 number discs are not printed in either edition in `docs/rules/`, and both of
-those editions describe a *different* turn rule from the one we implement.
+those editions describe a _different_ turn rule from the one we implement.
 Everything that could not be cited is written down in ADR 0006 instead of
 quietly invented.
 
@@ -290,6 +290,11 @@ pnpm verify        # lint, typecheck, both purity guards, both test lanes
 pnpm test          # fast lane, 519 tests, ~11s
 pnpm test:slow     # whole-game runs over real sockets, ~14s
 pnpm shots         # headless screenshots into .shots/ — then look at them
+pnpm shots --scenario new-shores-4 --turns 400   # a Seafarers board, played on
+
+# --turns matters: setup alone cannot show a ship, because ships are bought in
+# the main phase. It prints the actions it took, so you can tell whether the
+# state you are looking at contains the thing you are checking.
 pnpm shots --players 6
 ```
 

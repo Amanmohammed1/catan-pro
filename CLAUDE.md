@@ -210,6 +210,8 @@ pnpm fuzz                           # 10,000 self-play games (~114s)
 pnpm fuzz --games 500 --players 3
 pnpm fuzz --games 10000 --players 6 --scenario classic-5-6
 pnpm shots                          # headless screenshots into .shots/
+pnpm shots --scenario new-shores-4  # a Seafarers board
+pnpm shots --turns 400              # play past setup, so ships appear
 ```
 
 Bots can also be added from the lobby when creating a room: the server plays

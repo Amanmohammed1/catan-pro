@@ -168,9 +168,36 @@ was first written:
 Wins spread evenly across seats on both new boards, which is the signal that
 neither the island bonuses nor the setup restriction favours a seat.
 
-Deliberately still open: `hiddenStacks` remains unused, and Fog Islands is the
-scenario that needs it — it is also the only one of the four requiring genuine
-redaction, so it brings the `playerView` work with it. Two of the four
-scenarios are not built. And nothing in the client draws a ship, a pirate or a
-gold field yet, so these boards are for the moment playable only by bots and by
-tests.
+The client now draws these boards: the sea renders as water rather than as
+blue land, ships and the pirate are on the board, gold fields have controls,
+and `?hotseat=1&scenario=new-shores-4` reaches one without a server.
+
+Deliberately still open:
+
+- **`hiddenStacks` is unused**, and Fog Islands is the scenario that needs it.
+  It is also the only one of the four requiring genuine redaction, so it brings
+  the `playerView` work with it.
+- **`startingPieces` is inert.** The schema validates it and `Scenario`
+  declares it, but `createGame` never reads it, so a scenario cannot begin with
+  pieces on the board. Seafarers p.3 wants exactly that — "if you place a
+  starting settlement on the coast, you may place a ship on an adjacent empty
+  sea edge instead of a road" — so it will have to be implemented rather than
+  removed. Worth knowing before trusting the field: it is declared, accepted
+  and ignored.
+- **Two of the four scenarios are not built** (Four Islands, Through the
+  Desert), and the lobby has no scenario picker, so online play still chooses a
+  board by seat count alone.
+
+### A note on checking the picture
+
+Ships appeared not to render for a long stretch, and the renderer was taken
+apart looking for the cause. It was sound throughout. The boards being
+photographed simply had no ships on them: `pnpm shots` stopped at the end of
+setup, where a ship cannot yet exist, and once it played on, its loop wedged at
+the first discard prompt because the Discard button stays disabled until cards
+are chosen.
+
+`pnpm shots --scenario <id> --turns <n>` now plays past setup and prints the
+actions it took, so the next person can confirm in one line that the state
+they are looking at contains the thing they are checking — which is the
+question to ask first, not last.
