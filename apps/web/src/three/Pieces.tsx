@@ -5,9 +5,10 @@ import {
   createCityGeometry,
   createRoadGeometry,
   createSettlementGeometry,
+  createShipGeometry,
   ROAD_LENGTH,
 } from "./geometries.js";
-import { BOARD_TOP, edgeTransform, nodePosition } from "./layout3d.js";
+import { BOARD_TOP, edgeTransform, nodePosition, SEA_LEVEL } from "./layout3d.js";
 import { color } from "./palette.js";
 import { useGrowIn } from "./useGrowIn.js";
 
@@ -52,7 +53,9 @@ export function Roads({
   const geometry = useMemo(() => createRoadGeometry(), []);
   const instances = useMemo(() => {
     const out: PieceInstance[] = [];
-    for (const [edge, owner] of Object.entries(roads).sort(([a], [b]) => (a < b ? -1 : 1))) {
+    for (const [edge, owner] of Object.entries(roads).sort(([a], [b]) =>
+      a < b ? -1 : 1,
+    )) {
       const transform = edgeTransform(board, edge, BOARD_TOP);
       if (transform === null) continue;
       out.push({
@@ -70,7 +73,55 @@ export function Roads({
     return out;
   }, [board, roads, colors]);
 
-  return <PieceLayer geometry={geometry} instances={instances} outline={[1.04, 1.3, 1.35]} />;
+  return (
+    <PieceLayer geometry={geometry} instances={instances} outline={[1.04, 1.3, 1.35]} />
+  );
+}
+
+/**
+ * Ships, floating at sea level rather than standing on the board face.
+ *
+ * The height is the whole trick: a road sits on top of the tiles at BOARD_TOP,
+ * while a ship belongs on the water, which is a good deal lower. Passing the
+ * same edge through `edgeTransform` at a different height is all it takes, and
+ * it is why a ship on a coastal edge reads as being in the water beside the
+ * land rather than on it.
+ */
+export function Ships({
+  board,
+  ships,
+  colors,
+}: {
+  readonly board: BoardGraph;
+  readonly ships: Readonly<Record<EdgeId, { readonly player: PlayerId }>>;
+  readonly colors: readonly string[];
+}): React.JSX.Element | null {
+  const geometry = useMemo(() => createShipGeometry(), []);
+  const instances = useMemo(() => {
+    const out: PieceInstance[] = [];
+    for (const [edge, ship] of Object.entries(ships).sort(([a], [b]) =>
+      a < b ? -1 : 1,
+    )) {
+      const transform = edgeTransform(board, edge, SEA_LEVEL);
+      if (transform === null) continue;
+      out.push({
+        key: edge,
+        position: new THREE.Vector3(...transform.position),
+        rotationY: transform.rotationY,
+        scale: new THREE.Vector3(
+          (transform.length * ROAD_SPAN) / ROAD_LENGTH,
+          ROAD_BULK,
+          ROAD_BULK,
+        ),
+        color: colors[ship.player] ?? "#888888",
+      });
+    }
+    return out;
+  }, [board, ships, colors]);
+
+  return (
+    <PieceLayer geometry={geometry} instances={instances} outline={[1.04, 1.24, 1.3]} />
+  );
 }
 
 export function Buildings({
@@ -100,8 +151,16 @@ export function Buildings({
 
   return (
     <>
-      <PieceLayer geometry={settlementGeometry} instances={settlements} outline={[1.1, 1.07, 1.12]} />
-      <PieceLayer geometry={cityGeometry} instances={cities} outline={[1.08, 1.05, 1.1]} />
+      <PieceLayer
+        geometry={settlementGeometry}
+        instances={settlements}
+        outline={[1.1, 1.07, 1.12]}
+      />
+      <PieceLayer
+        geometry={cityGeometry}
+        instances={cities}
+        outline={[1.08, 1.05, 1.1]}
+      />
     </>
   );
 }

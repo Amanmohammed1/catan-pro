@@ -5,6 +5,8 @@
  *   pnpm shots                      hot-seat game + lobby, three viewport sizes
  *   pnpm shots --players 6          a different seat count
  *   pnpm shots --url http://...     use an already running client
+ *   pnpm shots --scenario new-shores-4   a Seafarers board
+ *   pnpm shots --turns 400          keep playing past setup, so ships appear
  *
  * Why this exists: the client once shipped with every number token and road
  * buried inside the tiles and every heading drawn black-on-black, while 383
@@ -14,8 +16,13 @@
  *
  * It starts Vite itself unless --url is given, drives any Chromium-family
  * browser over the DevTools protocol (set HEXPORT_BROWSER to pick one), plays
- * through setup via the accessible `[data-placement]` buttons, and prints any
- * console errors the page raised.
+ * through setup via the accessible `[data-placement]` buttons — and on past it
+ * when --turns is given — then prints any console errors the page raised.
+ *
+ * That last part matters on a Seafarers board. A ship costs lumber and wool and
+ * cannot be built before the main phase, so a picture taken at the end of setup
+ * can never contain one, and a hull could be shipped sunk inside the sea tiles
+ * with every test still green.
  */
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -33,6 +40,13 @@ for (let i = 2; i < process.argv.length; i += 2) {
 const PLAYERS = Number(args.get("players") ?? 4);
 const SEED = args.get("seed") ?? "shots";
 const SCENARIO = args.get("scenario");
+/**
+ * How many interface actions to take past setup before the last picture.
+ *
+ * Zero keeps the old behaviour. A few hundred is enough for ships to appear on
+ * a Seafarers board: in self-play the first one lands around action twenty.
+ */
+const TURNS = Number(args.get("turns") ?? 0);
 const PORT = Number(args.get("port") ?? 5199);
 const CDP_PORT = PORT + 4000;
 const BASE = args.get("url") ?? `http://localhost:${String(PORT)}/`;
@@ -204,6 +218,83 @@ async function main() {
       }
       await sleep(2500);
       await shot(`${viewport.name}-game`);
+
+      /**
+       * Play on for a while, so the board has something on it.
+       *
+       * Setup alone shows settlements and roads and nothing else. A Seafarers
+       * board needs more than that to be worth looking at: ships cost lumber
+       * and wool and cannot be built until the main phase, so a picture taken
+       * at the end of setup can never show one — which is how a hull could have
+       * been shipped sunk inside the sea tiles with every test passing.
+       *
+       * The moves are taken the way the UI tests take them, by clicking
+       * whatever the screen offers, so this drives the real interface rather
+       * than reaching into the engine.
+       */
+      if (TURNS > 0) {
+        const tally = {};
+        let idle = 0;
+
+        for (let i = 0; i < TURNS; i++) {
+          const acted = await evaluate(`(() => {
+            const panel = document.querySelector('[data-panel="actions"]') ?? document;
+            const pick = (sel) => {
+              const el = panel.querySelector(sel);
+              if (el && !el.disabled) { el.click(); return true; }
+              return false;
+            };
+
+            if (pick('button[data-action="roll"]')) return "roll";
+            if (pick('button[data-action^="take-gold-"]')) return "gold";
+
+            // Discarding needs cards chosen first: the Discard button stays
+            // disabled at 0/N. Tap a "+" stepper instead and come back next
+            // pass. Without this the whole loop wedges on the first seven
+            // rolled with a full hand, which is exactly what it did.
+            const plus = [...document.querySelectorAll('button')].find(
+              (b) => (b.getAttribute('aria-label') ?? '').startsWith('one more') && !b.disabled,
+            );
+            if (pick('button[data-action="discard"]')) return "discard";
+            if (plus) { plus.click(); return "discard-pick"; }
+
+            const spot = document.querySelector('button[data-placement]');
+            if (spot) { spot.click(); return "place"; }
+            // Ships before roads: a Seafarers picture with no ship in it says
+            // nothing about whether ships draw, and the loop will happily build
+            // roads all game otherwise.
+            if (pick('button[data-action="build-ship"]')) return "arm-ship";
+            if (pick('button[data-action="build-road"]')) return "arm-road";
+            if (pick('button[data-action="steal"]')) return "steal";
+            if (pick('button[data-action="decline"]')) return "decline";
+            if (pick('button[data-action="bank-trade"]')) return "trade";
+            if (pick('button[data-action="end-turn"]')) return "end";
+            if (pick('button[data-action="continue"]')) return "continue";
+            return "";
+          })()`);
+
+          tally[acted || "(nothing)"] = (tally[acted || "(nothing)"] ?? 0) + 1;
+
+          // One dead pass is not necessarily the end — a re-render can land
+          // between the click and the next look. Several in a row is.
+          if (acted === "") {
+            idle++;
+            if (idle > 8) break;
+          } else {
+            idle = 0;
+          }
+          await sleep(120);
+        }
+
+        console.log(`  actions taken: ${JSON.stringify(tally)}`);
+        const board = await evaluate(
+          `(() => { const l = document.querySelectorAll('[data-panel="log"] li, li').length; return String(l); })()`,
+        );
+        void board;
+
+        await sleep(2200);
+        await shot(`${viewport.name}-played`);
+      }
 
       if (viewport.name === "desktop") {
         const rect = await evaluate(`(() => {

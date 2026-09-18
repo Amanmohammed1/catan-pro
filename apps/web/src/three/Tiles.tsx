@@ -3,10 +3,14 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { prefersReducedMotion } from "../ui/motion.js";
 import type { BoardGraph, Terrain, TileId } from "@hexport/engine";
-import { createHexTileGeometry, createShoreGeometry } from "./geometries.js";
+import {
+  createHexTileGeometry,
+  createSeaGeometry,
+  createShoreGeometry,
+} from "./geometries.js";
 import { BOARD_TOP, orderedTileIds, tilePosition } from "./layout3d.js";
 import { TERRAIN_SIDE } from "./palette.js";
-import { terrainTexture } from "./textures.js";
+import { terrainTexture, waterTexture } from "./textures.js";
 
 /**
  * The terrain.
@@ -35,11 +39,24 @@ export function Tiles({
 }): React.JSX.Element {
   const tileGeometry = useMemo(() => createHexTileGeometry(), []);
   const shoreGeometry = useMemo(() => createShoreGeometry(), []);
+  const seaGeometry = useMemo(() => createSeaGeometry(), []);
   const ids = useMemo(() => orderedTileIds(board), [board]);
+
+  // Sea is split out from the land terrains. It is drawn thin, at the water's
+  // surface, and gets no sand shore beneath it — a sea hex is not a tile that
+  // happens to be blue.
+  const [landIds, seaIds] = useMemo(() => {
+    const land: TileId[] = [];
+    const sea: TileId[] = [];
+    for (const id of ids) {
+      (board.tiles[id]?.terrain === "sea" ? sea : land).push(id);
+    }
+    return [land, sea];
+  }, [board, ids]);
 
   const byTerrain = useMemo(() => {
     const groups = new Map<Terrain, TileId[]>();
-    for (const id of ids) {
+    for (const id of landIds) {
       const tile = board.tiles[id];
       if (tile === undefined) continue;
       const list = groups.get(tile.terrain) ?? [];
@@ -47,11 +64,13 @@ export function Tiles({
       groups.set(tile.terrain, list);
     }
     return [...groups.entries()];
-  }, [board, ids]);
+  }, [board, landIds]);
 
   return (
     <group>
-      <Shore board={board} ids={ids} geometry={shoreGeometry} />
+      <Shore board={board} ids={landIds} geometry={shoreGeometry} />
+
+      <SeaLayer board={board} ids={seaIds} geometry={seaGeometry} />
 
       {byTerrain.map(([terrain, list]) => (
         <TerrainLayer
@@ -154,7 +173,8 @@ function TerrainLayer({
       receiveShadow
       onPointerOver={(event) => {
         const id = event.instanceId === undefined ? undefined : ids[event.instanceId];
-        if (id !== undefined && highlighted.has(id)) document.body.style.cursor = "pointer";
+        if (id !== undefined && highlighted.has(id))
+          document.body.style.cursor = "pointer";
       }}
       onPointerOut={() => {
         document.body.style.cursor = "";
@@ -169,6 +189,71 @@ function TerrainLayer({
         event.stopPropagation();
         onPick(id);
       }}
+    />
+  );
+}
+
+/**
+ * The sea hexes of a Seafarers board.
+ *
+ * Kept apart from the land layers because almost nothing about them is the
+ * same: they sit at the water's surface rather than standing on the table, they
+ * carry the frame's own water texture so the sea inside the board matches the
+ * sea around it, and they are never a robber target, so they take no pointer
+ * handling at all.
+ *
+ * They are also not inset like land tiles. The gaps between land hexes show the
+ * sand beneath and make the grid legible; gaps between sea hexes would only
+ * draw a grid on open water.
+ */
+function SeaLayer({
+  board,
+  ids,
+  geometry,
+}: {
+  readonly board: BoardGraph;
+  readonly ids: readonly TileId[];
+  readonly geometry: THREE.BufferGeometry;
+}): React.JSX.Element | null {
+  const mesh = useRef<THREE.InstancedMesh>(null);
+
+  const material = useMemo(() => {
+    const map = waterTexture();
+    map.repeat.set(0.5, 0.5);
+    map.offset.set(0.5, 0.5);
+    return new THREE.MeshStandardMaterial({
+      map,
+      color: "#cfe6f2",
+      roughness: 0.28,
+      metalness: 0.12,
+    });
+  }, []);
+
+  useEffect(() => () => material.dispose(), [material]);
+
+  useLayoutEffect(() => {
+    const instanced = mesh.current;
+    if (instanced === null) return;
+    const matrix = new THREE.Matrix4();
+    ids.forEach((id, index) => {
+      const tile = board.tiles[id];
+      if (tile === undefined) return;
+      const [x, y, z] = tilePosition(tile.coord);
+      matrix.makeTranslation(x, y, z);
+      instanced.setMatrixAt(index, matrix);
+    });
+    instanced.instanceMatrix.needsUpdate = true;
+    instanced.computeBoundingSphere();
+  }, [board, ids]);
+
+  if (ids.length === 0) return null;
+
+  return (
+    <instancedMesh
+      ref={mesh}
+      args={[geometry, material, ids.length]}
+      receiveShadow
+      raycast={() => null}
     />
   );
 }
@@ -268,7 +353,11 @@ function TileHalo({
   readonly z: number;
 }): React.JSX.Element {
   return (
-    <mesh position={[x, BOARD_TOP + 0.01, z]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+    <mesh
+      position={[x, BOARD_TOP + 0.01, z]}
+      rotation={[-Math.PI / 2, 0, 0]}
+      raycast={() => null}
+    >
       <ringGeometry args={[0.66, 0.84, 6, 1, Math.PI / 6]} />
       <meshBasicMaterial
         color="#ffe3a0"

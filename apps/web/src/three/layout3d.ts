@@ -50,6 +50,17 @@ const FRAME_MARGIN = 1.42;
 
 /** The sea's surface: below the tiles, above the table. */
 export const SEA_LEVEL = 0.06;
+
+/**
+ * How thick a sea hex is drawn.
+ *
+ * Sized so its top face lands exactly on SEA_LEVEL, the height the frame's
+ * water surface and the harbour decks already use. A sea hex drawn at land
+ * thickness would stand 0.16 *above* the water it is meant to be, and would
+ * swallow the ships floating on it — the same class of mistake as the number
+ * tokens that once rendered inside the tiles.
+ */
+export const SEA_TILE_THICKNESS = SEA_LEVEL;
 /** Open water between the island's rim and the frame. Harbours sit in it. */
 export const SEA_WIDTH = 0.95;
 export const FRAME_WIDTH = 0.42;
@@ -99,7 +110,10 @@ export function convexHull(points: readonly Point2[]): Point2[] {
 
   const lower: Point2[] = [];
   for (const p of sorted) {
-    while (lower.length >= 2 && cross(lower[lower.length - 2]!, lower[lower.length - 1]!, p) <= 0) {
+    while (
+      lower.length >= 2 &&
+      cross(lower[lower.length - 2]!, lower[lower.length - 1]!, p) <= 0
+    ) {
       lower.pop();
     }
     lower.push(p);
@@ -107,7 +121,10 @@ export function convexHull(points: readonly Point2[]): Point2[] {
   const upper: Point2[] = [];
   for (let i = sorted.length - 1; i >= 0; i--) {
     const p = sorted[i]!;
-    while (upper.length >= 2 && cross(upper[upper.length - 2]!, upper[upper.length - 1]!, p) <= 0) {
+    while (
+      upper.length >= 2 &&
+      cross(upper[upper.length - 2]!, upper[upper.length - 1]!, p) <= 0
+    ) {
       upper.pop();
     }
     upper.push(p);

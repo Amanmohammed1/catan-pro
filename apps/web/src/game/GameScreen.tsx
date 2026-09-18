@@ -129,6 +129,7 @@ export function GameScreen({
     const stillPossible = moves.some(
       (m) =>
         (mode === "road" && m.t === "buildRoad") ||
+        (mode === "ship" && m.t === "buildShip") ||
         (mode === "settlement" && m.t === "buildSettlement") ||
         (mode === "city" && m.t === "buildCity"),
     );
@@ -171,9 +172,11 @@ export function GameScreen({
           tiles.set(move.tile, move);
           break;
         case "buildShip":
-          // A ship arms off the road mode: both are the "extend my network"
-          // move, and on a coastal edge only one of the two is ever legal.
-          if (mode === "road") edges.set(move.edge, move);
+          // Its own mode, not the road's. Arming ships off the road button
+          // looked tidy — both extend your network — but road mode is gated on
+          // affording a road, so a player holding lumber and wool and no brick
+          // could not reach a ship the rules were offering them.
+          if (mode === "ship") edges.set(move.edge, move);
           break;
         // `moveShip` is deliberately absent. It names two edges, so clicking
         // one cannot express it — it wants a pick-up-then-put-down gesture of
@@ -217,8 +220,10 @@ export function GameScreen({
           <BoardCanvas
             board={board}
             roads={view.roads}
+            ships={view.ships}
             buildings={view.buildings}
             robber={view.robber}
+            pirate={view.pirate}
             colors={colors}
             nodeTargets={targets.nodes}
             edgeTargets={targets.edges}

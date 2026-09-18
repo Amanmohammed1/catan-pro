@@ -10,9 +10,11 @@ import {
   createRoadGeometry,
   createRobberGeometry,
   createRockGeometry,
+  createSeaGeometry,
   createSettlementGeometry,
   createSheafGeometry,
   createSheepGeometry,
+  createShipGeometry,
   createShoreGeometry,
   createTokenFaceGeometry,
   createTokenRimGeometry,
@@ -22,6 +24,7 @@ import {
   BOARD_TOP,
   CAMERA_FOV,
   FRAME_WIDTH,
+  SEA_LEVEL,
   SEA_WIDTH,
   boardBounds,
   cameraPose,
@@ -59,6 +62,36 @@ describe("tile slab", () => {
 
   it("sits above the sand shore that shows in the gaps", () => {
     expect(bounds(createShoreGeometry()).max.y).toBeLessThan(BOARD_TOP - 0.02);
+  });
+});
+
+describe("sea hexes", () => {
+  /**
+   * The same mistake as the buried number tokens, one board later: a sea hex
+   * drawn at land thickness stands well above the water it represents, and
+   * swallows the ships floating at SEA_LEVEL. Measured, not assumed.
+   */
+  it("has its surface exactly at SEA_LEVEL", () => {
+    expect(bounds(createSeaGeometry()).max.y).toBeCloseTo(SEA_LEVEL, 6);
+  });
+
+  it("lies far below the land, so islands rise out of the water", () => {
+    expect(bounds(createSeaGeometry()).max.y).toBeLessThan(BOARD_TOP - 0.1);
+  });
+
+  it("leaves a ship's hull above the waterline rather than inside it", () => {
+    // A ship is placed with its origin at SEA_LEVEL, so the hull occupies
+    // SEA_LEVEL..SEA_LEVEL+height. The sea surface must not reach into it.
+    const hull = bounds(createShipGeometry());
+    expect(SEA_LEVEL + hull.max.y).toBeGreaterThan(
+      bounds(createSeaGeometry()).max.y + 0.1,
+    );
+  });
+
+  it("is roughly the length of a road, so it scales along an edge the same way", () => {
+    const hull = bounds(createShipGeometry());
+    const road = bounds(createRoadGeometry());
+    expect(hull.max.x - hull.min.x).toBeCloseTo(road.max.x - road.min.x, 1);
   });
 });
 
@@ -112,7 +145,16 @@ describe("island outline", () => {
   const board = buildBoardGraph(loadScenario("classic-3-4"), seedRng("outline")).board;
 
   it("is a convex hull of the land", () => {
-    expect(convexHull([[0, 0], [2, 0], [1, 1], [1, 0.2], [0, 2], [2, 2]])).toHaveLength(4);
+    expect(
+      convexHull([
+        [0, 0],
+        [2, 0],
+        [1, 1],
+        [1, 0.2],
+        [0, 2],
+        [2, 2],
+      ]),
+    ).toHaveLength(4);
   });
 
   it("wraps every intersection", () => {
@@ -180,17 +222,14 @@ describe("camera framing", () => {
     },
   );
 
-  it.each([0.46, 1.24, 2.4])(
-    "does not leave the board tiny at aspect %s",
-    (aspect) => {
-      const projected = project(aspect, intersections);
-      const spanX = Math.max(...projected.map((p) => Math.abs(p.x)));
-      const spanY = Math.max(...projected.map((p) => Math.abs(p.y)));
-      // The island fills most of the limiting axis; the sea and the wooden
-      // frame around it take the rest, which is why this is not nearer 1. A
-      // board marooned in the middle of a large empty table is the failure
-      // this guards against — that measured about 0.35.
-      expect(Math.max(spanX, spanY)).toBeGreaterThan(0.55);
-    },
-  );
+  it.each([0.46, 1.24, 2.4])("does not leave the board tiny at aspect %s", (aspect) => {
+    const projected = project(aspect, intersections);
+    const spanX = Math.max(...projected.map((p) => Math.abs(p.x)));
+    const spanY = Math.max(...projected.map((p) => Math.abs(p.y)));
+    // The island fills most of the limiting axis; the sea and the wooden
+    // frame around it take the rest, which is why this is not nearer 1. A
+    // board marooned in the middle of a large empty table is the failure
+    // this guards against — that measured about 0.35.
+    expect(Math.max(spanX, spanY)).toBeGreaterThan(0.55);
+  });
 });

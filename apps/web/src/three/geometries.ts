@@ -1,5 +1,10 @@
 import * as THREE from "three";
-import { hexCornerOffsets, TILE_BEVEL, TILE_THICKNESS } from "./layout3d.js";
+import {
+  hexCornerOffsets,
+  SEA_TILE_THICKNESS,
+  TILE_BEVEL,
+  TILE_THICKNESS,
+} from "./layout3d.js";
 
 /**
  * Shared geometries.
@@ -58,6 +63,21 @@ export function createHexTileGeometry(): THREE.BufferGeometry {
 /** The sand under the tiles, seen in the gaps between them. */
 export function createShoreGeometry(): THREE.BufferGeometry {
   return hexSlab(TILE_THICKNESS * 0.7, 0.02, 1.04);
+}
+
+/**
+ * A sea hex: a thin sheet at the water's surface, not a blue slab of land.
+ *
+ * Height is the entire point. A land tile stands from 0 to BOARD_TOP; water
+ * belongs at SEA_LEVEL, which is far lower, so the land reads as rising out of
+ * the sea and a ship floats *in* the water rather than being swallowed by it.
+ *
+ * Built at full height and lowered by the caller would have been simpler, and
+ * wrong: the slab's sides would still be there, a wall of blue around every
+ * sea hex. This is deliberately almost flat.
+ */
+export function createSeaGeometry(): THREE.BufferGeometry {
+  return hexSlab(SEA_TILE_THICKNESS, 0.012);
 }
 
 /** A number token's rim: an open cylinder, standing on y = 0. */
@@ -121,6 +141,41 @@ export function createRoadGeometry(): THREE.BufferGeometry {
  * A settlement: the classic house silhouette — square walls, pitched roof —
  * extruded from its front profile.
  */
+/**
+ * A ship: a little wooden hull, modelled along the same axis as a road.
+ *
+ * Deliberately the road's sibling rather than something grander. The two sit on
+ * the same edges and compete for the coastal ones (Seafarers p.2), so they read
+ * best as two pieces from one box — a plank and a hull — and a ship scales
+ * along its edge exactly as a road does.
+ *
+ * The profile is a side view: flat keel, a stern that lifts a little and a prow
+ * that lifts more, so the direction it faces is legible from across the board.
+ */
+export function createShipGeometry(): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  const hl = ROAD_LENGTH / 2 - 0.02;
+
+  shape.moveTo(-hl * 0.92, 0.015);
+  shape.lineTo(hl * 0.78, 0.0);
+  shape.lineTo(hl, 0.155); // prow
+  shape.lineTo(hl * 0.62, 0.125);
+  shape.lineTo(-hl * 0.66, 0.115);
+  shape.lineTo(-hl * 0.98, 0.135); // stern
+  shape.closePath();
+
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.115,
+    bevelEnabled: true,
+    bevelThickness: 0.02,
+    bevelSize: 0.02,
+    bevelSegments: 2,
+  });
+  geometry.translate(0, 0.02, -0.058);
+  geometry.computeVertexNormals();
+  return withShade(geometry, () => 1);
+}
+
 export function createSettlementGeometry(): THREE.BufferGeometry {
   return profilePiece(
     [
@@ -240,11 +295,7 @@ export function createRockGeometry(): THREE.BufferGeometry {
   cap.translate(0, 0.205, 0);
   const boulder = new THREE.DodecahedronGeometry(0.06, 0);
   boulder.translate(0.1, 0.035, 0.04);
-  return merge([
-    tint(peak, "#7b838d"),
-    tint(cap, "#e6ebf0"),
-    tint(boulder, "#666d76"),
-  ]);
+  return merge([tint(peak, "#7b838d"), tint(cap, "#e6ebf0"), tint(boulder, "#666d76")]);
 }
 
 /** A sheep, small enough to graze beside the token. */
@@ -276,11 +327,7 @@ export function createSheafGeometry(): THREE.BufferGeometry {
   crown.translate(0, 0.135, 0);
   const tie = new THREE.CylinderGeometry(0.041, 0.041, 0.02, 8);
   tie.translate(0, 0.07, 0);
-  return merge([
-    tint(sheaf, "#d9ab3a"),
-    tint(crown, "#f0cd5c"),
-    tint(tie, "#8a5a2e"),
-  ]);
+  return merge([tint(sheaf, "#d9ab3a"), tint(crown, "#f0cd5c"), tint(tie, "#8a5a2e")]);
 }
 
 /** A clay pit with a small stack of fired bricks beside it. */

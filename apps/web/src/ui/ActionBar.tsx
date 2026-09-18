@@ -27,7 +27,7 @@ import { RESOURCE_NAME } from "./cards/ResourceArt.js";
  * driver find it — never a class name or a label (CLAUDE.md, Conventions).
  */
 
-export type BuildMode = "none" | "settlement" | "city" | "road";
+export type BuildMode = "none" | "settlement" | "city" | "road" | "ship";
 
 export interface ActionBarProps {
   readonly view: WireView;
@@ -296,6 +296,25 @@ function BuildGroup({
         >
           Road
         </Button>
+        {/* Only on a board that has water. Seafarers p.2: a ship costs what a
+            road does with wool for the brick, and the two compete for coastal
+            edges — but a ship must have its own control, because a player who
+            can afford a ship and not a road would otherwise have no way to
+            reach a move the rules are offering them. */}
+        {can("buildShip") && (
+          <Button
+            data-action="build-ship"
+            disabled={!can("buildShip")}
+            reason={whyNot(view, "ship")}
+            intent={mode === "ship" ? "primary" : "default"}
+            onClick={() => {
+              onMode(mode === "ship" ? "none" : "ship");
+            }}
+            hint={<Cost parts={costOf("ship")} />}
+          >
+            Ship
+          </Button>
+        )}
         <Button
           data-action="build-settlement"
           disabled={!can("buildSettlement")}
@@ -765,7 +784,7 @@ function Disclosure({
 }
 
 function costOf(
-  kind: "road" | "settlement" | "city" | "devCard",
+  kind: "road" | "settlement" | "city" | "devCard" | "ship",
 ): readonly (readonly [ResourceKind, number])[] {
   return RESOURCE_KINDS.flatMap((resource) => {
     const amount = COSTS[kind][resource];
@@ -776,7 +795,7 @@ function costOf(
 /** Why a build button is unavailable, in the player's terms. */
 function whyNot(
   view: WireView,
-  kind: "road" | "settlement" | "city" | "devCard",
+  kind: "road" | "settlement" | "city" | "devCard" | "ship",
 ): string {
   const cost = COSTS[kind];
   const short = RESOURCE_KINDS.filter(
@@ -790,6 +809,9 @@ function whyNot(
   switch (kind) {
     case "road":
       return "No path connects to your network";
+    case "ship":
+      // p.2: a ship joins your ships or your buildings, never your roads.
+      return "No sea path connects to one of your ships or buildings";
     case "settlement":
       return "No intersection is both connected to your roads and two paths from any building";
     case "city":

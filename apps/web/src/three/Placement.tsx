@@ -1,15 +1,16 @@
 import { useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import type { BoardGraph, EdgeId, NodeId } from "@hexport/engine";
+import type { Action, BoardGraph, EdgeId, NodeId } from "@hexport/engine";
 import {
   createCityGeometry,
   createRoadGeometry,
   createSettlementGeometry,
+  createShipGeometry,
   ROAD_LENGTH,
 } from "./geometries.js";
 import { PIECE_SCALE, ROAD_BULK, ROAD_SPAN } from "./Pieces.js";
-import { BOARD_TOP, edgeTransform, nodePosition } from "./layout3d.js";
+import { BOARD_TOP, edgeTransform, nodePosition, SEA_LEVEL } from "./layout3d.js";
 import { prefersReducedMotion } from "../ui/motion.js";
 
 /**
@@ -101,20 +102,33 @@ export function EdgePlacements({
   onPick,
 }: {
   readonly board: BoardGraph;
-  readonly edges: ReadonlySet<EdgeId>;
+  /**
+   * The move each edge would make, not merely which edges are available.
+   *
+   * A road and a ship are offered on the same edges and are told apart only by
+   * the action: showing a plank hovering at board height over open water would
+   * be a lie about what the click does.
+   */
+  readonly edges: ReadonlyMap<EdgeId, Action>;
   readonly color: string;
   readonly onPick: (edge: EdgeId) => void;
 }): React.JSX.Element | null {
   const [hovered, setHovered] = useState<EdgeId | null>(null);
   const list = useMemo(() => [...edges], [edges]);
-  const ghost = useMemo(() => createRoadGeometry(), []);
+  const roadGhost = useMemo(() => createRoadGeometry(), []);
+  const shipGhost = useMemo(() => createShipGeometry(), []);
 
   if (list.length === 0) return null;
 
   return (
     <group>
-      {list.map((edge) => {
-        const transform = edgeTransform(board, edge, BOARD_TOP + 0.01);
+      {list.map(([edge, move]) => {
+        const isShip = move.t === "buildShip";
+        const transform = edgeTransform(
+          board,
+          edge,
+          (isShip ? SEA_LEVEL : BOARD_TOP) + 0.01,
+        );
         if (transform === null) return null;
         const isHovered = hovered === edge;
 
@@ -125,7 +139,7 @@ export function EdgePlacements({
             rotation={[0, transform.rotationY, 0]}
           >
             <mesh
-              geometry={ghost}
+              geometry={isShip ? shipGhost : roadGhost}
               scale={[
                 (transform.length * ROAD_SPAN) / ROAD_LENGTH,
                 isHovered ? ROAD_BULK : 0.45,
@@ -196,7 +210,12 @@ function Pulse({
     <group ref={mesh} visible={visible} position={[0, 0.02, 0]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.1, 0.2, 28]} />
-        <meshBasicMaterial color="#1a110a" transparent opacity={0.55} depthWrite={false} />
+        <meshBasicMaterial
+          color="#1a110a"
+          transparent
+          opacity={0.55}
+          depthWrite={false}
+        />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]}>
         <ringGeometry args={[0.12, 0.175, 28]} />

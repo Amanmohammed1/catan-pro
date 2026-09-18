@@ -14,9 +14,10 @@ import type {
 import { frameCamera, Scene, type OrbitHandle } from "./Scene.js";
 import { Tiles } from "./Tiles.js";
 import { Props } from "./Props.js";
-import { Roads, Buildings } from "./Pieces.js";
+import { Roads, Ships, Buildings } from "./Pieces.js";
 import { NumberTokens } from "./NumberTokens.js";
 import { Robber } from "./Robber.js";
+import { Pirate } from "./Pirate.js";
 import { Harbors } from "./Harbors.js";
 import { Frame } from "./Frame.js";
 import { Effects } from "./Effects.js";
@@ -37,8 +38,12 @@ import { useUi } from "../store/ui.js";
 export interface BoardCanvasProps {
   readonly board: BoardGraph;
   readonly roads: Readonly<Record<EdgeId, PlayerId>>;
+  /** Seafarers ships, by edge. Empty in a base game. */
+  readonly ships: Readonly<Record<EdgeId, { readonly player: PlayerId }>>;
   readonly buildings: Readonly<Record<NodeId, Building>>;
   readonly robber: TileId;
+  /** The pirate's sea hex, or null where a scenario has none. */
+  readonly pirate: TileId | null;
   readonly colors: readonly string[];
   /** Intersections the player may build on right now, and with what. */
   readonly nodeTargets: ReadonlyMap<NodeId, Action>;
@@ -58,8 +63,10 @@ export interface BoardCanvasProps {
 export function BoardCanvas({
   board,
   roads,
+  ships,
   buildings,
   robber,
+  pirate,
   colors,
   nodeTargets,
   edgeTargets,
@@ -77,7 +84,6 @@ export function BoardCanvas({
   const bounds = useMemo(() => boardBounds(board), [board]);
 
   const nodeKeys = useMemo(() => new Set(nodeTargets.keys()), [nodeTargets]);
-  const edgeKeys = useMemo(() => new Set(edgeTargets.keys()), [edgeTargets]);
   const tileKeys = useMemo(() => new Set(tileTargets.keys()), [tileTargets]);
 
   return (
@@ -119,8 +125,10 @@ export function BoardCanvas({
           <NumberTokens board={board} blockedTile={robber} />
           <Harbors board={board} />
           <Roads board={board} roads={roads} colors={colors} />
+          <Ships board={board} ships={ships} colors={colors} />
           <Buildings buildings={buildings} colors={colors} />
           <Robber board={board} tile={robber} />
+          <Pirate board={board} tile={pirate} />
           <Spotlight board={board} targets={spotlight ?? null} />
 
           <NodePlacements
@@ -134,7 +142,7 @@ export function BoardCanvas({
           />
           <EdgePlacements
             board={board}
-            edges={edgeKeys}
+            edges={edgeTargets}
             color={youColor}
             onPick={(edge) => {
               const action = edgeTargets.get(edge);
