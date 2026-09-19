@@ -26,6 +26,7 @@ import {
   type DevCardKind,
   type GameConfig,
   type GameState,
+  type HiddenStackState,
   type PlayerId,
   type PlayerState,
   type ResourceCounts,
@@ -83,6 +84,35 @@ export function buildDevDeck(
   return [shuffled, next];
 }
 
+/**
+ * Shuffle the face-down piles a scenario declares (Seafarers p.8).
+ *
+ * Both the hexes and the number discs are shuffled with the game's own
+ * generator, so what is still hidden follows from the seed like everything else
+ * (golden rule 4) and a replay uncovers the same board in the same order.
+ *
+ * A scenario with no stacks — every board but The Fog Islands — runs no
+ * iteration and consumes no randomness, so this is inert for existing games
+ * rather than shifting their generator state by a step.
+ */
+function buildHiddenStacks(
+  scenario: Scenario,
+  rng: RngState,
+): readonly [Record<string, HiddenStackState>, RngState] {
+  const stacks: Record<string, HiddenStackState> = {};
+  let current = rng;
+
+  for (const stack of scenario.hiddenStacks) {
+    const [contents, afterContents] = shuffle(current, [...stack.contents]);
+    current = afterContents;
+    const [numbers, afterNumbers] = shuffle(current, [...(stack.numbers ?? [])]);
+    current = afterNumbers;
+    stacks[stack.id] = { id: stack.id, contents, numbers };
+  }
+
+  return [stacks, current] as const;
+}
+
 function makePlayer(id: PlayerId, name: string, scenario: Scenario): PlayerState {
   return {
     id,
@@ -133,6 +163,7 @@ export function createGame(options: CreateGameOptions): GameState {
 
   const { board, rng: afterBoard } = buildBoardGraph(scenario, seedRng(seed));
   const [devDeck, afterDeck] = buildDevDeck(afterBoard, supply);
+  const [hiddenStacks, afterStacks] = buildHiddenStacks(scenario, afterDeck);
 
   const players = playerNames.map((name, index) => makePlayer(index, name, scenario));
 
@@ -151,6 +182,7 @@ export function createGame(options: CreateGameOptions): GameState {
       ships: scenario.pieces.ships,
     },
     setupIslands: scenario.setup.setupIslands ?? null,
+    setupSlots: scenario.setup.placeOn,
     ...options.config,
   };
 
@@ -158,10 +190,11 @@ export function createGame(options: CreateGameOptions): GameState {
     scenarioId: scenario.id,
     board,
     config,
-    rng: afterDeck,
+    rng: afterStacks,
     players,
     bank: fullBank(supply),
     devDeck,
+    hiddenStacks,
     moduleState: initialModuleState(modules, { scenario, players: order }),
     buildings: {},
     roads: {},

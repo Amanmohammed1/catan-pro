@@ -262,12 +262,73 @@ function sortedRecord<T>(entries: Iterable<readonly [string, T]>): Record<string
  * entirely land edges and roads work everywhere. Land on one side and sea on
  * the other is coast, where Seafarers will allow both roads and ships.
  */
-function classifyEdge(slots: readonly SlotKind[]): EdgeKind {
+export function classifyEdge(slots: readonly SlotKind[]): EdgeKind {
   const hasLand = slots.includes("land");
   const hasSea = slots.includes("sea");
+
+  // An unrevealed neighbour makes the edge coastal, because it may turn out to
+  // be either (Seafarers p.8). This is forced rather than chosen: p.8's trigger
+  // is "when you place a ship **or** road adjacent to an intersection with an
+  // empty hex space". `canPlaceRoad` refuses a sea edge and `canPlaceShip`
+  // refuses a land one, so calling fog either would make half of that rule
+  // impossible to perform. Coast carries both.
+  //
+  // The edge is reclassified from real slots when the hex is turned face up,
+  // which is part of what a reveal replaces (ADR 0009).
+  if (slots.includes("fog")) return "coast";
+
   if (hasLand && hasSea) return "coast";
   if (hasSea) return "sea";
   return "land";
+}
+
+/**
+ * Turn a face-down hex face up, returning the board that results.
+ *
+ * The Fog Islands fills an empty space the moment a player builds beside it
+ * (Seafarers p.8). Everywhere else the board is built once at game creation and
+ * never touched again — CLAUDE.md says so plainly — so this is the single
+ * sanctioned exception, and ADR 0009 records why it is safe.
+ *
+ * What changes is deliberately narrow: the tile's slot, terrain and number, and
+ * the classification of the six edges it touches. An edge beside an unrevealed
+ * hex is coastal because the hex might turn out to be either; once it is known,
+ * the edge is whatever the real slots say. That reclassification is the part
+ * easy to forget, and it matters — a fog space revealing as sea turns its edges
+ * from road-and-ship into ship-only.
+ *
+ * No id changes. No node or edge is added or removed, and no adjacency moves,
+ * so every id already written to the event log still means exactly what it
+ * meant when it was written (ADR 0001). That property is the whole reason
+ * replacing the board is sound rather than reckless.
+ */
+export function revealHex(
+  board: BoardGraph,
+  tile: TileId,
+  terrain: Terrain,
+  number: number | null,
+): BoardGraph {
+  const existing = board.tiles[tile];
+  if (existing === undefined) {
+    throw new ScenarioError(`Cannot reveal "${tile}": no such tile on this board.`);
+  }
+
+  const tiles: Record<TileId, Tile> = {
+    ...board.tiles,
+    [tile]: { ...existing, slot: terrain === "sea" ? "sea" : "land", terrain, number },
+  };
+
+  const edges: Record<EdgeId, BoardEdge> = { ...board.edges };
+  for (const edgeId of existing.edges) {
+    const edge = edges[edgeId];
+    if (edge === undefined) continue;
+    const slots = edge.tiles
+      .map((id) => tiles[id]?.slot)
+      .filter((slot): slot is SlotKind => slot !== undefined);
+    edges[edgeId] = { ...edge, kind: classifyEdge(slots) };
+  }
+
+  return { ...board, tiles, edges };
 }
 
 export function buildBoardGraph(scenario: Scenario, rng: RngState): BuildBoardResult {

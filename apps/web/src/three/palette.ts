@@ -19,6 +19,9 @@ export const TERRAIN_COLOR: Record<Terrain, string> = {
   desert: "#e3cf9d",
   gold: "#f0c200",
   sea: "#2f6f9f",
+  // Unexplored (Seafarers p.8). Cool and pale so it reads as absence rather
+  // than as a terrain, and kept clear of mountain's grey.
+  fog: "#b9c6cc",
 };
 
 /** The darker earth showing on a tile's bevelled sides. */
@@ -31,6 +34,7 @@ export const TERRAIN_SIDE: Record<Terrain, string> = {
   desert: "#b39d68",
   gold: "#a88400",
   sea: "#1f4d70",
+  fog: "#7e8c92",
 };
 
 export const TERRAIN_LABEL: Record<Terrain, string> = {
@@ -42,6 +46,9 @@ export const TERRAIN_LABEL: Record<Terrain, string> = {
   desert: "Desert — nothing",
   gold: "Gold field",
   sea: "Sea",
+  // Named, not just tinted: colour is never the only signal, and "unexplored"
+  // is the one thing a player needs to know about this hex.
+  fog: "Unexplored",
 };
 
 /**

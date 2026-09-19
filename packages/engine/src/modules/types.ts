@@ -137,6 +137,27 @@ export interface RuleModule {
    */
   readonly onPhaseEnter?: (state: GameState, phase: Phase) => ModuleEffect | null;
 
+  /**
+   * Called after an action has been accepted and reduced, before the result
+   * leaves `reduce()`.
+   *
+   * The Fog Islands need it: placing a road or a ship beside an empty hex space
+   * reveals what lies there (Seafarers p.8). Neither existing hook reaches
+   * that. `interceptAction` only inspects beforehand and cannot see the
+   * resulting state; `reducers` only covers action kinds the module owns, and
+   * the trigger spans both worlds — `buildRoad` is a central case while
+   * `buildShip` is module-owned. This is the third time a module has needed to
+   * observe a central action (ADR 0008 records `buildSettlement` as the
+   * second), which is what makes it a hook rather than a special case.
+   *
+   * Returns an effect to fold in, or null to leave the result untouched.
+   */
+  readonly afterAction?: (
+    state: GameState,
+    action: Action,
+    events: readonly GameEvent[],
+  ) => ModuleEffect | null;
+
   /** Moves this module adds, in the phases it owns. */
   readonly extraLegalMoves?: (state: GameState, player: PlayerId) => Action[];
 

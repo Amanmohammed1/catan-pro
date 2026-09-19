@@ -52,13 +52,19 @@ afterEach(async () => {
 /** Seat `count` players into a fresh room and start the game. */
 async function seatedGame(
   count: number,
-  options?: { turnTimeoutMs?: number },
+  options?: { turnTimeoutMs?: number; scenarioId?: string },
 ): Promise<{ url: string; host: TestClient; all: TestClient[]; code: string }> {
   const url = await startServer(options);
 
   const host = await newClient(url);
   host.hello();
-  host.send({ t: "createRoom", nickname: "Host", playerCount: count });
+  host.send({
+    t: "createRoom",
+    nickname: "Host",
+    playerCount: count,
+    // Omitted rather than sent undefined, so the server's own default applies.
+    ...(options?.scenarioId === undefined ? {} : { scenarioId: options.scenarioId }),
+  });
   await host.until(() => host.room !== null, "room created");
   const code = host.room?.code ?? "";
 
@@ -389,6 +395,27 @@ describe("hidden information (golden rule 5)", () => {
       expect(raw).not.toContain('"rng"');
       expect(client.view).not.toHaveProperty("devDeck");
       expect(client.view).not.toHaveProperty("rng");
+    }
+  }, 60000);
+
+  it("never sends what is still face down on The Fog Islands", async () => {
+    // Deliberately on a Fog Islands board. The classic board declares no
+    // face-down stacks at all, so this assertion would pass on it while
+    // proving nothing — a green test over an empty set.
+    const { all } = await seatedGame(4, { scenarioId: "fog-islands-4" });
+    await playToEnd(all, 120);
+
+    for (const client of all) {
+      const raw = client.received.join("\n");
+      // The piles say what every unexplored space holds. A client that could
+      // read them would know the whole board before sailing anywhere.
+      expect(raw).not.toContain('"contents"');
+      expect(client.view?.hiddenStacks["fog"]).not.toHaveProperty("contents");
+
+      // The counts are public, exactly as the development deck's size is.
+      const stack = client.view?.hiddenStacks["fog"];
+      expect(typeof stack?.hexes).toBe("number");
+      expect(typeof stack?.numbers).toBe("number");
     }
   }, 60000);
 

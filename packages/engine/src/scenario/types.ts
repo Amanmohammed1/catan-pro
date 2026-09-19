@@ -35,10 +35,21 @@ export type Terrain =
   | "mountain" // ore
   | "desert" // nothing
   | "gold" // any, Seafarers
-  | "sea";
+  | "sea"
+  | "fog"; // face down, Seafarers p.8 — what it is, is not known yet
 
-/** What kind of content a cell may hold. */
-export type SlotKind = "land" | "sea";
+/**
+ * What kind of content a cell may hold.
+ *
+ * `fog` is a space left empty at setup, holding a hex nobody has seen: The Fog
+ * Islands deals its board from a face-down stack, and a space is filled only
+ * when a player builds next to it (Seafarers p.8). A fog cell is a real cell
+ * from the moment the board is built — it has its nodes and its edges, and they
+ * keep their ids when it is revealed, which is what lets the revealed board
+ * replace the old one without invalidating a single id in the event log
+ * (ADR 0001, ADR 0009).
+ */
+export type SlotKind = "land" | "sea" | "fog";
 
 /** Terrain to resource. Desert, sea and gold produce nothing on their own. */
 export const TERRAIN_RESOURCE: Readonly<Record<Terrain, ResourceKind | null>> = {
@@ -50,6 +61,9 @@ export const TERRAIN_RESOURCE: Readonly<Record<Terrain, ResourceKind | null>> = 
   desert: null,
   gold: null,
   sea: null,
+  // An unrevealed hex produces nothing. It cannot: it has no number either,
+  // so no roll ever reaches it before it is turned face up.
+  fog: null,
 };
 
 export const LAND_TERRAINS: readonly Terrain[] = [
@@ -62,8 +76,16 @@ export const LAND_TERRAINS: readonly Terrain[] = [
   "gold",
 ];
 
+/**
+ * Land, as opposed to water or the not-yet-known.
+ *
+ * Reads the list rather than excluding `sea`, which it used to do. That was
+ * equivalent until The Fog Islands added a third answer: an unrevealed hex is
+ * not land, and "anything that is not sea" would have quietly called it land at
+ * every future call site.
+ */
 export function isLandTerrain(terrain: Terrain): boolean {
-  return terrain !== "sea";
+  return LAND_TERRAINS.includes(terrain);
 }
 
 /** One hex position the board contains. */
@@ -149,6 +171,12 @@ export interface HiddenStack {
   readonly id: string;
   readonly cells: readonly Axial[];
   readonly contents: readonly Terrain[];
+  /**
+   * The face-down number discs drawn alongside the hexes (Seafarers p.8). A
+   * revealed land hex takes one; a revealed sea hex takes none, and takes no
+   * resource either. Omitted by a stack whose hexes need no discs.
+   */
+  readonly numbers?: readonly number[];
 }
 
 export interface StartingPiece {

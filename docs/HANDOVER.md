@@ -102,13 +102,25 @@ carrying a ship, a ship did not connect a settlement (which made games
 unwinnable rather than merely wrong), and the harness could not tell a stuck
 game from a long one. All three are fixed; ADR 0008 records them.
 
-**Not done:** Fog Islands and Four Islands, for two different reasons. Fog
-Islands needs `hiddenStacks`, which is the only genuine redaction work left in
-the milestone. Four Islands is **declined rather than pending**: p.6 gives every
+The Fog Islands is built too, and it is the one that needed new machinery: a
+board that changes during play. `hiddenStacks` is real hidden information now,
+`playerView` sends counts alone, and the server's leak test plays a Fog Islands
+board rather than a classic one — on the classic board that assertion would pass
+over an empty set. ADR 0009 records the board-replacement decision and the
+`afterAction` hook it needed.
+
+It also found that **`setup.placeOn` had been declared, validated and ignored
+since M0**. No earlier board could show it: they are all land, or they confine
+the opening to a named island. Fog Islands sets no island restriction, and the
+fuzzer stalled twenty games out of twenty on a settlement placed at an
+intersection ringed by sea, where no setup road is legal.
+
+**Not done:** Four Islands is **declined rather than pending**: p.6 gives every
 player their own home islands, and a scenario pins one `vpForFirstSettlement`
 per island for everyone, so generating it would produce a board that scores
 wrongly while looking fine. ADR 0008 says what it would take. `startingPieces`
-is declared, validated and ignored, and Seafarers p.3 needs it.
+is declared, validated and ignored, and Seafarers p.3 needs it. Revealing a gold
+field pays no card yet — ADR 0009 says why.
 
 M7 (Cities & Knights) onward: not started.
 
@@ -166,6 +178,10 @@ Eight ADRs, in `docs/adr/`. The newest matter most:
 - **0008** — Seafarers as implemented: ships, the open-end rule, island points
   derived rather than tracked, the boards coming from the Variable Setup
   tables, and the three bugs the first fuzz run found.
+- **0009** — The Fog Islands: why a reveal replaces the board rather than
+  overlaying it, why an unrevealed neighbour makes an edge coastal (it is forced
+  by p.8, not chosen), the `afterAction` hook, and the one rule the rulebooks do
+  not settle — how many spaces a single placement uncovers.
 
 - **0004** — the board is painted in code, not shipped as art. No binary assets,
   OFL fonts from npm, and a local Lightformer environment rather than drei's
@@ -331,8 +347,8 @@ pnpm bots --players 6 --bots 5
 
 ```bash
 pnpm verify        # lint, typecheck, both purity guards, both test lanes
-pnpm test          # fast lane, 655 tests, ~21s
-pnpm test:slow     # whole-game runs over real sockets, ~30s
+pnpm test          # fast lane, 679 tests, ~19s
+pnpm test:slow     # whole-game runs over real sockets, ~26s
 pnpm shots         # headless screenshots into .shots/ — then look at them
 pnpm shots --scenario new-shores-4 --turns 400   # a Seafarers board, played on
 
@@ -365,8 +381,8 @@ pnpm exec prettier --ignore-path /dev/null --write packages/scenarios/data
 ## 7. Current numbers
 
 ```
-fast lane     655 tests in 26 files, ~21s
-slow lane      17 tests in 6 files, ~30s
+fast lane     679 tests in 27 files, ~19s
+slow lane      17 tests in 6 files, ~26s
 fuzz          classic  10,000 games, 10.19M actions, 0 stalled, ~114s
               5 players 10,000 games, 19.48M actions, 0 stalled, ~214s
               6 players 10,000 games, 22.39M actions, 0 stalled, ~278s
@@ -374,7 +390,9 @@ fuzz          classic  10,000 games, 10.19M actions, 0 stalled, ~114s
               new-shores-3   10,000 games, 17.55M actions, 0 stalled
               desert-4       10,000 games, 18.83M actions, 0 stalled, 2 exhausted
               desert-3       10,000 games, 19.21M actions, 0 stalled
-              wins spread evenly across every seat on all seven
+              fog-islands-4  10,000 games, 14.59M actions, 0 stalled
+              fog-islands-3  10,000 games, 14.17M actions, 0 stalled
+              wins spread evenly across every seat on all nine
               Seafarers boards run at ~3 games/s, so each takes about an hour
 board         classic 19 tiles / 54 nodes / 72 edges / 9 harbours
               5-6     30 tiles / 80 nodes / 109 edges / 11 harbours

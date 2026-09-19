@@ -36,6 +36,7 @@ const TERRAIN_FILL: Record<Terrain, string> = {
   desert: "#e6d8ae",
   gold: "#f2c200",
   sea: "#2f6f9f",
+  fog: "#b9c6cc",
 };
 
 const TERRAIN_LABEL: Record<Terrain, string> = {
@@ -47,6 +48,7 @@ const TERRAIN_LABEL: Record<Terrain, string> = {
   desert: "desert",
   gold: "gold",
   sea: "sea",
+  fog: "unexplored",
 };
 
 export interface BoardViewProps {

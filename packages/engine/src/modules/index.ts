@@ -15,6 +15,7 @@
 
 import { baseModule } from "./base.js";
 import { ext56Module } from "./ext56.js";
+import { fogIslandsModule } from "./fogIslands.js";
 import { seafarersModule } from "./seafarers.js";
 import type { Action, Rejection } from "../actions/types.js";
 import type { GameEvent } from "../events/types.js";
@@ -42,12 +43,20 @@ export type {
 } from "./types.js";
 export { BASE_SUPPLY, baseModule } from "./base.js";
 export { ext56Module } from "./ext56.js";
+export {
+  fogIslandsModule,
+  fogIslandsStateOf,
+  type FogIslandsState,
+} from "./fogIslands.js";
 export { seafarersModule, seafarersStateOf, type SeafarersState } from "./seafarers.js";
 
 const REGISTRY: Readonly<Record<string, RuleModule>> = {
   base: baseModule,
   ext56: ext56Module,
   seafarers: seafarersModule,
+  // The Fog Islands loads alongside `seafarers`, never instead of it: it adds
+  // the face-down board (p.8) and takes nothing away, so a scenario names both.
+  fogIslands: fogIslandsModule,
 };
 
 export class UnknownModuleError extends Error {}
@@ -175,6 +184,30 @@ export function onPhaseEnter(
 ): ModuleEffect {
   return fold(modules, state, (module, current) =>
     module.onPhaseEnter?.(current, phase),
+  );
+}
+
+/**
+ * Every module's response to an action that has just been reduced.
+ *
+ * Unlike `interceptAction`, which inspects a move before it is judged, this runs
+ * once the move has been accepted — so a module sees the state the action
+ * produced, which is the only place some rules can be written. The Fog Islands
+ * turns a hex face up here, because a road or a ship landing beside an empty
+ * space is what reveals it (Seafarers p.8), and that trigger spans a central
+ * reducer case (`buildRoad`) and a module-owned one (`buildShip`) alike.
+ *
+ * The events of the action are passed through rather than merged, so a module
+ * can read what happened without being able to rewrite it.
+ */
+export function afterAction(
+  modules: readonly RuleModule[],
+  state: GameState,
+  action: Action,
+  events: readonly GameEvent[],
+): ModuleEffect {
+  return fold(modules, state, (module, current) =>
+    module.afterAction?.(current, action, events),
   );
 }
 

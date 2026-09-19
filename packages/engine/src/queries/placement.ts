@@ -47,6 +47,23 @@ export function canPlaceSettlement(
   if (seat === undefined || seat.pieces.settlements <= 0) return false;
 
   if (options.setup) {
+    // An opening settlement goes on land — never out on open water, and never
+    // on a space nobody has explored yet.
+    //
+    // Every scenario has always declared this as `setup.placeOn`, and nothing
+    // read it, because the gap could not show: the other boards are all land or
+    // confine the opening to a named island, which is land. The Fog Islands
+    // sets no island restriction (Seafarers p.8), and the fuzzer stalled all
+    // twenty games on it at once — a settlement went up on an intersection
+    // ringed by sea, where `canPlaceRoad` then refuses every edge for being
+    // sea, leaving no legal move and no winner.
+    const slots = state.config.setupSlots;
+    const touchesAllowedSlot = (state.board.nodes[node]?.tiles ?? []).some((tileId) => {
+      const slot = state.board.tiles[tileId]?.slot;
+      return slot !== undefined && slots.includes(slot);
+    });
+    if (!touchesAllowedSlot) return false;
+
     // Seafarers p.4: the opening settlements stay on the main island. Null
     // means the scenario sets no restriction, which is every base-game board.
     const allowed = state.config.setupIslands;

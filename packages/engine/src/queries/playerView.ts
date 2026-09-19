@@ -59,6 +59,18 @@ export interface PlayerView {
   readonly self: SelfPlayer;
   readonly bank: ResourceCounts;
   readonly devDeckSize: number;
+  /**
+   * How much is still face down in each stack, and nothing else.
+   *
+   * Seafarers p.8: the unexplored hexes and their number discs are genuine
+   * hidden information. Sending the piles themselves would tell a client what
+   * every empty space holds before anyone sails there, which is the whole
+   * scenario. The counts are public in the same way `devDeckSize` is — you can
+   * see how much of the pile is left, never what is in it.
+   */
+  readonly hiddenStacks: Readonly<
+    Record<string, { readonly hexes: number; readonly numbers: number }>
+  >;
   readonly buildings: Readonly<Record<NodeId, Building>>;
   readonly roads: Readonly<Record<EdgeId, PlayerId>>;
   /** Ships are public: they sit on the board like any other piece. */
@@ -116,6 +128,13 @@ export function playerView(state: GameState, you: PlayerId): PlayerView {
     // The count is public (p.5 says you cannot buy when the supply is empty);
     // the order is not.
     devDeckSize: state.devDeck.length,
+    // Counts only — see the field's note. The piles stay on the server.
+    hiddenStacks: Object.fromEntries(
+      Object.entries(state.hiddenStacks).map(([id, stack]) => [
+        id,
+        { hexes: stack.contents.length, numbers: stack.numbers.length },
+      ]),
+    ),
     buildings: state.buildings,
     roads: state.roads,
     ships: state.ships,

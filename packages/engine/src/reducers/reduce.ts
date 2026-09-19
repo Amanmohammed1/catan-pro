@@ -26,6 +26,7 @@ import {
 } from "../queries/placement.js";
 import { canPlayDevCard, discardCount } from "../queries/legalMoves.js";
 import {
+  afterAction,
   interceptAction,
   moduleReduce,
   onDiceRoll,
@@ -271,7 +272,39 @@ function whyNotBuilding(
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Reduce an action, then let the loaded modules answer what it did.
+ *
+ * The rules themselves are unchanged and live in `reduceBase` below. This
+ * wrapper exists because `afterAction` has to see *every* accepted action and
+ * the reducer returns from some thirty-five places; threading a call through
+ * each one would be thirty-five chances to forget. It is also the only point
+ * that covers both halves of the trigger it was added for — The Fog Islands
+ * reveals a hex when a road or a ship lands beside an empty space (Seafarers
+ * p.8), and `buildRoad` is a central case while `buildShip` belongs to a
+ * module (ADR 0009).
+ *
+ * A rejected action is returned untouched: a move that did not happen cannot
+ * have consequences. A base game loads no module implementing the hook, so the
+ * fold produces nothing and the inner result is returned by identity — which is
+ * what keeps a classic game byte-for-byte what it was.
+ */
 export function reduce(state: GameState, action: Action): ReduceResult {
+  const result = reduceBase(state, action);
+  if (!result.ok) return result;
+
+  const modules = resolveModules(state.config.modules);
+  const effect = afterAction(modules, result.state, action, result.events);
+  if (effect.state === result.state && effect.events.length === 0) return result;
+
+  return {
+    ok: true,
+    state: effect.state,
+    events: [...result.events, ...effect.events],
+  };
+}
+
+function reduceBase(state: GameState, action: Action): ReduceResult {
   if (state.winner !== null) {
     return reject(action, "The game is over.");
   }

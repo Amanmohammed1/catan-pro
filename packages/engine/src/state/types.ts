@@ -10,7 +10,7 @@
 
 import type { BoardGraph } from "../geometry/types.js";
 import type { EdgeId, NodeId, TileId } from "../geometry/ids.js";
-import type { ResourceKind } from "../scenario/types.js";
+import type { ResourceKind, SlotKind, Terrain } from "../scenario/types.js";
 import type { RngState } from "../rng/sfc32.js";
 import type { Phase } from "../phases/types.js";
 import type { ModuleState } from "../modules/types.js";
@@ -162,6 +162,18 @@ export interface GameConfig {
    * settlements on the main island.
    */
   readonly setupIslands: readonly string[] | null;
+  /**
+   * Which kinds of cell an opening settlement may touch. The scenario's
+   * `setup.placeOn`, copied here for the same reason as `pieces`.
+   *
+   * Always `["land"]` in practice, and inert until The Fog Islands: every other
+   * board either is all land or confines the opening to a named island, which
+   * is land anyway. Fog Islands sets no island restriction (Seafarers p.8), and
+   * without this a player could open on an intersection ringed entirely by sea
+   * — legal to settle, impossible to attach the setup road to, which stalls the
+   * game before the first turn.
+   */
+  readonly setupSlots: readonly SlotKind[];
 }
 
 export const DEFAULT_CONFIG: GameConfig = {
@@ -173,7 +185,32 @@ export const DEFAULT_CONFIG: GameConfig = {
   // Rules p.5: 15 roads, 5 settlements, 4 cities, and no ships in the base box.
   pieces: { roads: 15, settlements: 5, cities: 4, ships: 0 },
   setupIslands: null,
+  setupSlots: ["land"],
 };
+
+/**
+ * A face-down pile a scenario deals from mid-game (Seafarers p.8).
+ *
+ * The Fog Islands leaves spaces on the board empty and fills one when a player
+ * builds beside it: the top hex is turned face up, and if it is land it takes a
+ * disc off a second face-down pile and pays its finder one resource.
+ *
+ * Order is hidden information exactly as `devDeck` is. A client that could read
+ * either pile would know what every unexplored space holds before sailing to
+ * it, so `playerView` sends the counts and nothing else.
+ *
+ * Which spaces are still face down is deliberately *not* stored here: a tile
+ * whose terrain reads `fog` is unrevealed, and that is the same fact. ADR 0008
+ * settled this once already for island victory points — a second copy is a
+ * second thing to keep in step, and the board is the one that cannot be wrong.
+ */
+export interface HiddenStackState {
+  readonly id: string;
+  /** Hexes still to be turned up, shuffled at game creation. */
+  readonly contents: readonly Terrain[];
+  /** Number discs still to be drawn, shuffled at game creation. */
+  readonly numbers: readonly number[];
+}
 
 export interface GameState {
   readonly scenarioId: string;
@@ -185,6 +222,18 @@ export interface GameState {
   readonly bank: ResourceCounts;
   /** Face-down draw pile. Order is hidden information; playerView strips it. */
   readonly devDeck: readonly DevCardKind[];
+
+  /**
+   * Face-down hex and number-disc piles, by stack id. Empty except on a board
+   * that declares them — today only The Fog Islands (Seafarers p.8).
+   *
+   * These live here rather than in `moduleState` for the same reason `ships`
+   * and `pirate` do (ADR 0008): they are board state, not bookkeeping, and
+   * `devDeck` already establishes that a face-down pile belongs in GameState
+   * with `playerView` stripping it. Contents are hidden information — a client
+   * that could read them would know every hex before sailing to it.
+   */
+  readonly hiddenStacks: Readonly<Record<string, HiddenStackState>>;
 
   /**
    * Per-module state, keyed by module id (ADR 0007).

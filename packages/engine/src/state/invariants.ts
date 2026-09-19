@@ -7,9 +7,11 @@
  * quietly producing a wrong board three hundred turns later.
  */
 
+import { classifyEdge } from "../geometry/buildBoardGraph.js";
 import { resolveModules, supplyFor } from "../modules/index.js";
 import { publicVictoryPoints, victoryPoints } from "../queries/scores.js";
 import { RESOURCE_KINDS, type GameState } from "./types.js";
+import type { SlotKind } from "../scenario/types.js";
 
 export interface InvariantViolation {
   readonly rule: string;
@@ -209,6 +211,40 @@ export function checkInvariants(state: GameState): InvariantViolation[] {
         problems.push({
           rule: "distance-rule",
           detail: `buildings on adjacent intersections ${nodeId} and ${neighbour}`,
+        });
+      }
+    }
+  }
+
+  // ---- a board that changes stays consistent with itself (ADR 0009) -------
+  // Only The Fog Islands rewrites the board mid-game, so every other board pays
+  // nothing for this: no stacks, no check, which matters when the fuzzer runs
+  // these after each of twenty million actions.
+  //
+  // Revealing a hex replaces its tile *and* reclassifies the six edges it
+  // touches, and the reclassification is the half that is easy to forget. A fog
+  // space that turns out to be sea converts its edges from road-and-ship to
+  // ship-only; an edge whose kind no longer follows from its own tiles would
+  // quietly let a piece stand somewhere the rules forbid.
+  if (Object.keys(state.hiddenStacks).length > 0) {
+    for (const tile of Object.values(state.board.tiles)) {
+      if (tile.terrain === "fog" && tile.number !== null) {
+        problems.push({
+          rule: "fog-unnumbered",
+          detail: `unrevealed hex ${tile.id} carries the number ${String(tile.number)}`,
+        });
+      }
+    }
+
+    for (const edge of Object.values(state.board.edges)) {
+      const slots = edge.tiles
+        .map((id) => state.board.tiles[id]?.slot)
+        .filter((slot): slot is SlotKind => slot !== undefined);
+      const expected = classifyEdge(slots);
+      if (edge.kind !== expected) {
+        problems.push({
+          rule: "edge-classification",
+          detail: `edge ${edge.id} is ${edge.kind} but its tiles make it ${expected}`,
         });
       }
     }

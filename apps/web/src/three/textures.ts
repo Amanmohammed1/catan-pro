@@ -135,6 +135,34 @@ export function terrainTexture(terrain: Terrain): THREE.CanvasTexture {
 type Painter = (ctx: CanvasRenderingContext2D, random: () => number, S: number) => void;
 
 const PAINTERS: Record<Terrain, Painter> = {
+  /**
+   * An unrevealed hex (Seafarers p.8).
+   *
+   * Every other painter here says what a hex produces. This one has the
+   * opposite job — to say that nobody knows yet — so it is deliberately
+   * featureless: banked mist with no props, no grain and no silhouette to read
+   * a terrain into. Guessing wrong from the art would be worse than guessing
+   * nothing.
+   */
+  fog: (ctx, random, S) => {
+    speckle(ctx, random, S, ["#c8d3d8", "#aebcc4"], 700, [3, 9]);
+    for (let i = 0; i < 40; i++) {
+      ctx.fillStyle = "#d7e0e4";
+      ctx.globalAlpha = 0.18 + random() * 0.16;
+      ctx.beginPath();
+      ctx.ellipse(
+        random() * S,
+        random() * S,
+        S * (0.18 + random() * 0.2),
+        8 + random() * 26,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  },
   forest: (ctx, random, S) => {
     speckle(ctx, random, S, ["#244a22", "#3d7a37"], 900, [2, 6]);
     // Canopy: overlapping clumps of tree crowns, lit from the upper left.

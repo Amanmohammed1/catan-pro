@@ -21,9 +21,14 @@ const terrain = z.enum([
   "desert",
   "gold",
   "sea",
+  // An unrevealed hex (Seafarers p.8). Valid as a pinned cell terrain and in
+  // `skipTerrains`; a terrain bag holding one would be meaningless, but so
+  // would a bag of sea, and the bag-size check is what catches either.
+  "fog",
 ]);
 
-const slot = z.enum(["land", "sea"]);
+/** `fog` is a space left empty at setup, filled on discovery (Seafarers p.8). */
+const slot = z.enum(["land", "sea", "fog"]);
 const resource = z.enum(["brick", "lumber", "wool", "grain", "ore"]);
 
 const hexDirection = z.union([
@@ -100,6 +105,12 @@ const hiddenStack = z.object({
   id: z.string().min(1),
   cells: z.array(axial),
   contents: z.array(terrain),
+  /**
+   * The face-down number discs drawn alongside the hexes (Seafarers p.8): a
+   * revealed land hex takes one, a revealed sea hex takes none. Omitted by a
+   * stack of hexes that need no discs.
+   */
+  numbers: z.array(z.number().int().min(2).max(12)).optional(),
 });
 
 const startingPiece = z.object({

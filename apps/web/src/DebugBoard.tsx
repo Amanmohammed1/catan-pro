@@ -35,6 +35,7 @@ const TERRAIN_FILL: Record<Terrain, string> = {
   desert: "#e6d8ae",
   gold: "#f2c200",
   sea: "#2f6f9f",
+  fog: "#b9c6cc",
 };
 
 const EDGE_STROKE: Record<string, string> = {

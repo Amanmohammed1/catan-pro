@@ -555,11 +555,289 @@ const desertThree = buildIslandBoard({
 // that is a rules change, not a data one. ADR 0008 carries the note.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// The Fog Islands (p.8 fixed and component tables, p.9 variable setup).
+//
+// The one scenario that deals part of its board face down. Twelve spaces start
+// empty and are filled only when a player builds beside one (p.8); ADR 0009
+// records what that cost the engine.
+//
+// Three things differ from every other board here:
+//
+//   1. Red discs may sit next to each other. p.9 says so outright — "Red number
+//      discs (6s and 8s) are allowed to end up next to each other in this case"
+//      — so the constraint is omitted rather than enforced.
+//   2. No island pays victory points. p.8's additional rules are about
+//      discovery alone, and the scenario wins at 12 VP. That is also what keeps
+//      it clear of the per-player home-island problem that stopped The Four
+//      Islands (ADR 0008), because there is no island award to get wrong.
+//   3. The opening settlements are not confined. p.8: "Your starting
+//      settlements with roads/ships may be placed on one island or two
+//      different islands." So `setupIslands` is omitted.
+//
+// The face-down pile is not a terrain bag: it holds 2 sea hexes, and a bag is
+// land-only. It is a flat, ordered list that `createGame` shuffles.
+// ---------------------------------------------------------------------------
+
+/** Flatten {terrain: count} into a list. Unlike a bag, this may hold sea. */
+function expandTerrains(counts) {
+  const out = [];
+  for (const [terrain, count] of Object.entries(counts)) {
+    for (let i = 0; i < count; i++) out.push(terrain);
+  }
+  return out;
+}
+
+/** Flatten disc entries into the flat list a face-down pile wants. */
+function expandDiscs(discs) {
+  const out = [];
+  for (const disc of discs) {
+    for (let i = 0; i < disc.count; i++) out.push(disc.value);
+  }
+  return out;
+}
+
+function buildFogBoard({
+  id,
+  name,
+  players,
+  islandA,
+  islandB,
+  fogShape,
+  faceUpBag,
+  faceDown,
+  faceUpDiscs,
+  faceDownDiscs,
+  ports,
+}) {
+  const land = [...islandA, ...islandB];
+  const occupied = [...land, ...fogShape];
+  const sea = shell(occupied);
+  const seaKeys = new Set(sea.map(key));
+  const centre = centroid(occupied);
+
+  const cells = [
+    ...islandA.map((coord) => ({
+      coord,
+      slot: "land",
+      bag: "faceUp",
+      island: "isle-a",
+    })),
+    ...islandB.map((coord) => ({
+      coord,
+      slot: "land",
+      bag: "faceUp",
+      island: "isle-b",
+    })),
+    // Terrain is pinned to `fog` so no bag fills these: what they hold comes off
+    // the face-down stack when somebody builds alongside (p.8).
+    ...fogShape.map((coord) => ({
+      coord,
+      slot: "fog",
+      terrain: "fog",
+      island: "unexplored",
+    })),
+    ...sea.map((coord) => ({ coord, slot: "sea", terrain: "sea" })),
+  ];
+
+  if (totalOf(faceUpBag) !== land.length) {
+    throw new Error(
+      `${id}: face-up bag holds ${totalOf(faceUpBag)} for ${land.length} hexes`,
+    );
+  }
+  if (totalOf(faceDown) !== fogShape.length) {
+    throw new Error(
+      `${id}: face-down pile holds ${totalOf(faceDown)} for ${fogShape.length} spaces`,
+    );
+  }
+
+  // No desert is dealt face up here, so every face-up land hex takes a disc.
+  const faceUpTotal = faceUpDiscs.reduce((sum, d) => sum + d.count, 0);
+  if (faceUpTotal !== land.length) {
+    throw new Error(`${id}: ${faceUpTotal} face-up discs for ${land.length} hexes`);
+  }
+
+  // p.8: a revealed sea hex takes no disc, so the pile is sized to the land in
+  // it. Getting this wrong would strand a reveal with nothing to draw.
+  const faceDownLand = totalOf(faceDown) - (faceDown.sea ?? 0);
+  const faceDownTotal = faceDownDiscs.reduce((sum, d) => sum + d.count, 0);
+  if (faceDownTotal !== faceDownLand) {
+    throw new Error(
+      `${id}: ${faceDownTotal} face-down discs for ${faceDownLand} land hexes in the pile`,
+    );
+  }
+
+  return {
+    id,
+    name,
+    schemaVersion: 1,
+    players,
+    victoryPoints: 12,
+    modules: ["base", "seafarers", "fogIslands"],
+    layout: { orientation: "pointy" },
+    cells,
+    bags: { faceUp: bagOf(faceUpBag) },
+    numbers: {
+      mode: "bag",
+      tokens: faceUpDiscs,
+      // Only the face-up land is numbered at setup; a revealed hex takes its
+      // disc off the face-down pile instead.
+      path: peelSpiral(land),
+      skipTerrains: ["desert", "sea", "fog"],
+      // No constraints: p.9 allows adjacent red discs on this board.
+    },
+    ports: portsAt(shoreline(land, seaKeys, centre), ports),
+    pieces: { roads: 15, settlements: 5, cities: 4, ships: 15 },
+    setup: {
+      mode: "snakeDraft",
+      rounds: 2,
+      // `fog` is not in the list, so no opening settlement lands on an empty
+      // space. p.8 puts no island restriction on where they go otherwise.
+      placeOn: ["land"],
+    },
+    islands: [
+      { id: "isle-a", vpForFirstSettlement: 0 },
+      { id: "isle-b", vpForFirstSettlement: 0 },
+      { id: "unexplored", vpForFirstSettlement: 0 },
+    ],
+    hiddenStacks: [
+      {
+        id: "fog",
+        cells: fogShape,
+        contents: expandTerrains(faceDown),
+        numbers: expandDiscs(faceDownDiscs),
+      },
+    ],
+    startingPieces: [],
+  };
+}
+
+// p.9: 13 sea, 17 face-up land (3 hills, 4 forest, 4 pasture, 3 fields,
+// 3 mountains), 12 face down. Sea count is ours, per ADR 0008.
+const fogFour = buildFogBoard({
+  id: "fog-islands-4",
+  name: "The Fog Islands",
+  players: { min: 3, max: 4 },
+  islandA: rowShape([
+    [-2, -1, 3],
+    [-1, -2, 3],
+    [0, -2, 3],
+  ]),
+  islandB: rowShape([
+    [4, -3, 3],
+    [5, -4, 3],
+    [6, -4, 2],
+  ]),
+  fogShape: rowShape([
+    [1, -2, 4],
+    [2, -2, 4],
+    [3, -3, 4],
+  ]),
+  faceUpBag: { hill: 3, forest: 4, pasture: 4, field: 3, mountain: 3 },
+  faceDown: { sea: 2, gold: 2, hill: 2, forest: 1, pasture: 1, field: 2, mountain: 2 },
+  faceUpDiscs: [
+    { value: 2, count: 1 },
+    { value: 3, count: 2 },
+    { value: 4, count: 2 },
+    { value: 5, count: 2 },
+    { value: 6, count: 2 },
+    { value: 8, count: 2 },
+    { value: 9, count: 2 },
+    { value: 10, count: 2 },
+    { value: 11, count: 1 },
+    { value: 12, count: 1 },
+  ],
+  faceDownDiscs: [
+    { value: 3, count: 1 },
+    { value: 4, count: 1 },
+    { value: 5, count: 1 },
+    { value: 6, count: 1 },
+    { value: 8, count: 1 },
+    { value: 9, count: 1 },
+    { value: 10, count: 1 },
+    { value: 11, count: 2 },
+    { value: 12, count: 1 },
+  ],
+  ports: [
+    GENERIC,
+    two("grain"),
+    GENERIC,
+    two("ore"),
+    two("wool"),
+    GENERIC,
+    two("brick"),
+    two("lumber"),
+    GENERIC,
+  ],
+});
+
+// p.8: 16 sea, 14 face-up land (2 hills, 4 forest, 4 pasture, 2 fields,
+// 2 mountains), 12 face down.
+const fogThree = buildFogBoard({
+  id: "fog-islands-3",
+  name: "The Fog Islands, three players",
+  players: { min: 3, max: 3 },
+  islandA: rowShape([
+    [-1, -1, 3],
+    [0, -2, 4],
+  ]),
+  islandB: rowShape([
+    [4, -4, 4],
+    [5, -4, 3],
+  ]),
+  fogShape: rowShape([
+    [1, -2, 4],
+    [2, -3, 4],
+    [3, -3, 4],
+  ]),
+  faceUpBag: { hill: 2, forest: 4, pasture: 4, field: 2, mountain: 2 },
+  faceDown: { sea: 2, gold: 2, hill: 2, forest: 1, pasture: 1, field: 2, mountain: 2 },
+  faceUpDiscs: [
+    { value: 3, count: 1 },
+    { value: 4, count: 1 },
+    { value: 5, count: 2 },
+    { value: 6, count: 2 },
+    { value: 8, count: 2 },
+    { value: 9, count: 2 },
+    { value: 10, count: 1 },
+    { value: 11, count: 2 },
+    { value: 12, count: 1 },
+  ],
+  faceDownDiscs: [
+    { value: 3, count: 2 },
+    { value: 4, count: 1 },
+    { value: 5, count: 1 },
+    { value: 6, count: 1 },
+    { value: 8, count: 1 },
+    { value: 9, count: 1 },
+    { value: 10, count: 1 },
+    { value: 11, count: 1 },
+    { value: 12, count: 1 },
+  ],
+  ports: [
+    GENERIC,
+    two("grain"),
+    two("ore"),
+    GENERIC,
+    two("wool"),
+    two("brick"),
+    GENERIC,
+    two("lumber"),
+  ],
+});
+
 const here = dirname(fileURLToPath(import.meta.url));
 const outDir = join(here, "..", "packages", "scenarios", "data");
 mkdirSync(outDir, { recursive: true });
 
-for (const scenario of [threePlayer, fourPlayer, desertThree, desertFour]) {
+for (const scenario of [
+  threePlayer,
+  fourPlayer,
+  desertThree,
+  desertFour,
+  fogThree,
+  fogFour,
+]) {
   const outFile = join(outDir, `${scenario.id}.json`);
   writeFileSync(outFile, `${JSON.stringify(scenario, null, 2)}\n`);
 

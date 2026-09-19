@@ -15,6 +15,8 @@ import newShores3 from "../data/new-shores-3.json" with { type: "json" };
 import newShores4 from "../data/new-shores-4.json" with { type: "json" };
 import desert3 from "../data/through-the-desert-3.json" with { type: "json" };
 import desert4 from "../data/through-the-desert-4.json" with { type: "json" };
+import fog3 from "../data/fog-islands-3.json" with { type: "json" };
+import fog4 from "../data/fog-islands-4.json" with { type: "json" };
 import tinyIsland from "../data/fixtures/tiny-island.json" with { type: "json" };
 import twoIslands from "../data/fixtures/two-islands.json" with { type: "json" };
 
@@ -27,6 +29,8 @@ const RAW: Readonly<Record<string, unknown>> = {
   "new-shores-4": newShores4,
   "through-the-desert-3": desert3,
   "through-the-desert-4": desert4,
+  "fog-islands-3": fog3,
+  "fog-islands-4": fog4,
   "tiny-island": tinyIsland,
   "two-islands": twoIslands,
 };
@@ -45,6 +49,8 @@ export const PLAYABLE_SCENARIO_IDS: readonly string[] = [
   "new-shores-4",
   "through-the-desert-3",
   "through-the-desert-4",
+  "fog-islands-3",
+  "fog-islands-4",
 ];
 
 /** Every scenario id, fixtures included. */

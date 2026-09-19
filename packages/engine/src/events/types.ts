@@ -9,7 +9,7 @@
  */
 
 import type { EdgeId, NodeId, TileId } from "../geometry/ids.js";
-import type { ResourceKind } from "../scenario/types.js";
+import type { ResourceKind, Terrain } from "../scenario/types.js";
 import type {
   BuildingKind,
   DevCardKind,
@@ -188,6 +188,17 @@ export type GameEvent =
       /** Null the first time the pirate is placed. */
       readonly from: TileId | null;
       readonly to: TileId;
+    }
+  | {
+      readonly e: "hexRevealed";
+      /** Whose road or ship uncovered it (Seafarers p.8). */
+      readonly player: PlayerId;
+      readonly tile: TileId;
+      readonly terrain: Terrain;
+      /** The disc drawn for a land hex. Null for sea, which takes none. */
+      readonly number: number | null;
+      /** The one card the finder takes. Null for sea, which pays nothing. */
+      readonly resource: ResourceKind | null;
     }
   | { readonly e: "gameEnded"; readonly winner: PlayerId; readonly points: number };
 
