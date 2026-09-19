@@ -1,7 +1,13 @@
 import { useMemo } from "react";
 import * as THREE from "three";
 import type { BoardGraph } from "@hexport/engine";
-import { BOARD_TOP, SEA_LEVEL, edgeTransform, nodePosition, tilePosition } from "./layout3d.js";
+import {
+  BOARD_TOP,
+  SEA_LEVEL,
+  edgeTransform,
+  nodePosition,
+  tilePosition,
+} from "./layout3d.js";
 import { harborSignTexture } from "./textures.js";
 import { useFontKey } from "./useFontKey.js";
 
@@ -28,7 +34,8 @@ export function Harbors({ board }: { readonly board: BoardGraph }): React.JSX.El
     return geometry;
   }, []);
 
-  // Push piers away from the island's middle, whatever the board's shape.
+  // Fallback only, for a harbour on an edge with no sea hex to aim at. The
+  // common case aims at the water across the edge instead — see `piers` below.
   const centre = useMemo(() => {
     const tiles = Object.values(board.tiles);
     let x = 0;
@@ -38,7 +45,11 @@ export function Harbors({ board }: { readonly board: BoardGraph }): React.JSX.El
       x += tx;
       z += tz;
     }
-    return new THREE.Vector3(x / Math.max(1, tiles.length), 0, z / Math.max(1, tiles.length));
+    return new THREE.Vector3(
+      x / Math.max(1, tiles.length),
+      0,
+      z / Math.max(1, tiles.length),
+    );
   }, [board]);
 
   const piers = useMemo(
@@ -47,9 +58,33 @@ export function Harbors({ board }: { readonly board: BoardGraph }): React.JSX.El
         const transform = edgeTransform(board, port.edge, BOARD_TOP);
         if (transform === null) return [];
         const [cx, , cz] = transform.position;
-        const outward = new THREE.Vector3(cx - centre.x, 0, cz - centre.z)
-          .normalize()
-          .multiplyScalar(REACH);
+
+        /*
+         * A harbour faces the water it serves, which is the sea hex across its
+         * own edge — not "away from the middle of the board".
+         *
+         * Those are the same direction on every board where the sea is on the
+         * outside, which is why the centroid version looked right for so long.
+         * The Black Forest puts its lake at the centre and its lumber harbours
+         * on the inner shore, so "away from the middle" pointed backwards into
+         * the forest and drew all six piers underneath the land tiles. The
+         * trade worked; there was simply nothing to see.
+         */
+        const water = (board.edges[port.edge]?.tiles ?? []).find(
+          (id) => board.tiles[id]?.terrain === "sea",
+        );
+        const target =
+          water === undefined
+            ? // No sea hex on this edge: a harbour on the board's rim, facing
+              // open water that has no tile. Aim away from the middle, which is
+              // what that case has always done.
+              new THREE.Vector3(cx - centre.x, 0, cz - centre.z)
+            : (() => {
+                const [wx, , wz] = tilePosition(board.tiles[water]?.coord ?? [0, 0]);
+                return new THREE.Vector3(wx - cx, 0, wz - cz);
+              })();
+
+        const outward = target.normalize().multiplyScalar(REACH);
         const deckY = SEA_LEVEL + 0.07;
         return [
           {
@@ -74,7 +109,12 @@ export function Harbors({ board }: { readonly board: BoardGraph }): React.JSX.El
       {piers.map((pier) => (
         <group key={pier.id}>
           {/* Deck and the posts it stands on. */}
-          <mesh position={[...pier.deck]} rotation={[0, pier.rotationY, 0]} castShadow receiveShadow>
+          <mesh
+            position={[...pier.deck]}
+            rotation={[0, pier.rotationY, 0]}
+            castShadow
+            receiveShadow
+          >
             <boxGeometry args={[0.6, 0.045, 0.56]} />
             <meshStandardMaterial color={WOOD} roughness={0.8} />
           </mesh>
@@ -89,7 +129,10 @@ export function Harbors({ board }: { readonly board: BoardGraph }): React.JSX.El
             const x = pier.deck[0] + (dx ?? 0) * c + (dz ?? 0) * s;
             const z = pier.deck[2] - (dx ?? 0) * s + (dz ?? 0) * c;
             return (
-              <mesh key={`${String(dx)}${String(dz)}`} position={[x, SEA_LEVEL + 0.02, z]}>
+              <mesh
+                key={`${String(dx)}${String(dz)}`}
+                position={[x, SEA_LEVEL + 0.02, z]}
+              >
                 <cylinderGeometry args={[0.022, 0.022, 0.12, 6]} />
                 <meshStandardMaterial color={WOOD_DARK} roughness={0.9} />
               </mesh>
@@ -97,7 +140,10 @@ export function Harbors({ board }: { readonly board: BoardGraph }): React.JSX.El
           })}
 
           {/* The sign, painted with the rate. */}
-          <mesh position={[pier.deck[0], pier.deck[1] + 0.024, pier.deck[2]]} geometry={sign}>
+          <mesh
+            position={[pier.deck[0], pier.deck[1] + 0.024, pier.deck[2]]}
+            geometry={sign}
+          >
             <meshStandardMaterial map={pier.texture} roughness={0.6} />
           </mesh>
 
