@@ -7,6 +7,7 @@
  * instead (CLAUDE.md golden rule 3).
  */
 
+import { isLandTerrain } from "../scenario/types.js";
 import type { EdgeId, NodeId } from "../geometry/ids.js";
 import type { GameState, PlayerId } from "../state/types.js";
 
@@ -99,6 +100,52 @@ export function canPlaceSettlement(
  * blocked path in that illustration touches the player's road only at an
  * intersection the blue player occupies.
  */
+/**
+ * True when every hex this edge borders is still face down.
+ *
+ * Such an edge does not exist as a place to build. On a physical board an empty
+ * space holds no hex, so there is no edge between two of them to lay anything
+ * along — Seafarers p.8 has you build "adjacent to an intersection with an
+ * empty hex space", beside the unknown rather than inside it.
+ *
+ * This matters more than it sounds. An edge with fog on both sides classifies
+ * as `coast`, because an unrevealed hex might turn out to be either land or
+ * sea — so without this a road could be built there and then find itself on
+ * open water when both neighbours revealed as sea, a position the rules refuse
+ * and no invariant noticed. Fog Islands has eighteen such edges within reach of
+ * land; a Black Forest fog ring is made of them.
+ */
+function bordersOnlyFog(state: GameState, edge: EdgeId): boolean {
+  const tiles = state.board.edges[edge]?.tiles ?? [];
+  return (
+    tiles.length > 0 && tiles.every((id) => state.board.tiles[id]?.terrain === "fog")
+  );
+}
+
+/**
+ * True when no hex this edge borders is known to be land.
+ *
+ * The rule for a road, stated so it survives an unrevealed neighbour. In the
+ * base game every legal road edge touches land: an inland edge has land both
+ * sides, a coastal one has land on one. Treating "not yet turned over" as "not
+ * yet land" extends that unchanged.
+ *
+ * Without it a road could go down on a fog-and-sea edge — legal at that
+ * instant, because the fog might still be land — and be stranded on open water
+ * in the *same action* when the reveal turned it to sea. The fuzzer hit this on
+ * a setup road within one game of the check being added.
+ *
+ * Exploration is unaffected: a road from the known board into the fog always
+ * borders the land it set out from.
+ */
+function bordersNoLand(state: GameState, edge: EdgeId): boolean {
+  const tiles = state.board.edges[edge]?.tiles ?? [];
+  return !tiles.some((id) => {
+    const terrain = state.board.tiles[id]?.terrain;
+    return terrain !== undefined && isLandTerrain(terrain);
+  });
+}
+
 export function canPlaceRoad(
   state: GameState,
   player: PlayerId,
@@ -120,6 +167,9 @@ export function canPlaceRoad(
   // Roads go on land and along the coast, never out to open sea (p.2). A
   // coastal edge takes either a road or a ship, whichever gets there first.
   if (graph.kind === "sea") return false;
+
+  // A road needs land beside it — and an unrevealed hex is not land yet.
+  if (bordersNoLand(state, edge)) return false;
 
   // During setup the road must attach to the settlement just placed (p.12).
   if (options.setup) {
@@ -229,6 +279,9 @@ export function canPlaceShip(
 
   // Sea and coast carry ships; a wholly inland edge never does.
   if (graph.kind === "land") return false;
+
+  // Never between two hexes nobody has turned over yet — see bordersOnlyFog.
+  if (bordersOnlyFog(state, edge)) return false;
 
   // One piece per edge, road or ship.
   if (state.roads[edge] !== undefined) return false;

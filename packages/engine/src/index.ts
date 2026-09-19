@@ -62,7 +62,12 @@ export {
   ScenarioError,
   buildBoardGraph,
   buildBoardFromSeed,
+  classifyEdge,
   nodeCorners,
+  // Turning a face-down hex up (ADR 0009). Exported because it is the one
+  // piece of that machinery a test outside the engine could not reach: the
+  // board tests live in packages/scenarios, where the real scenarios are.
+  revealHex,
   type BuildBoardResult,
 } from "./geometry/buildBoardGraph.js";
 

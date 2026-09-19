@@ -376,8 +376,8 @@ pnpm bots --players 6 --bots 5
 
 ```bash
 pnpm verify        # lint, typecheck, both purity guards, both test lanes
-pnpm test          # fast lane, 679 tests, ~19s
-pnpm test:slow     # whole-game runs over real sockets, ~26s
+pnpm test          # fast lane, 688 tests, ~20s
+pnpm test:slow     # whole-game runs over real sockets, ~73s
 pnpm shots         # headless screenshots into .shots/ — then look at them
 pnpm shots --scenario new-shores-4 --turns 400   # a Seafarers board, played on
 
@@ -410,8 +410,10 @@ pnpm exec prettier --ignore-path /dev/null --write packages/scenarios/data
 ## 7. Current numbers
 
 ```
-fast lane     679 tests in 27 files, ~19s
-slow lane      17 tests in 6 files, ~26s
+fast lane     688 tests in 29 files, ~20s
+slow lane      20 tests in 6 files, ~73s
+              (was ~26s until the UI driver learned to use ships and
+               development cards — more of the game per game, so longer runs)
 fuzz          classic  10,000 games, 10.19M actions, 0 stalled, ~114s
               5 players 10,000 games, 19.48M actions, 0 stalled, ~214s
               6 players 10,000 games, 22.39M actions, 0 stalled, ~278s

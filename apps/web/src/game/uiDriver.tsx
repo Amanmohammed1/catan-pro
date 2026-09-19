@@ -210,6 +210,23 @@ export function drive(el: HTMLElement): boolean {
   }
 
   if (here === "main") {
+    // Development cards. Nothing clicked any of these until now: all five
+    // controls sat in the same blind spot that hid both ship bugs, because
+    // every slow-lane UI test drives through here and this block went straight
+    // from building to ending the turn.
+    //
+    // Played before building, since Year of Plenty and Monopoly hand over
+    // resources and Road Building lays track — each can unlock a build in the
+    // same turn. The engine allows one card per turn, so this cannot loop.
+    //
+    // Knight and Road Building hand off to phases handled above, on the next
+    // call. Year of Plenty and Monopoly render one button per choice sharing a
+    // single data-action, so this takes whichever is offered first.
+    if (take("play-year-of-plenty")) return true;
+    if (take("play-monopoly")) return true;
+    if (take("play-knight")) return true;
+    if (take("play-road-building")) return true;
+
     if (tryBuild("build-city")) return true;
     if (tryBuild("build-settlement")) return true;
     if (tryBuild("build-road")) return true;
@@ -220,6 +237,9 @@ export function drive(el: HTMLElement): boolean {
     if (tryBuild("build-ship")) return true;
     // Convert surplus into something useful before giving up on the turn.
     if (take("bank-trade")) return true;
+    // Spend on a card rather than sitting on the resources — and exercise the
+    // buy control, which no test had ever clicked either.
+    if (take("buy-dev-card")) return true;
     if (tryMoveShip()) return true;
     if (take("end-turn")) return true;
   }

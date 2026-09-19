@@ -179,6 +179,15 @@ export function checkInvariants(state: GameState): InvariantViolation[] {
         detail: `road on ${edgeId}, which is not an edge`,
       });
     }
+    // Rules p.2: a road never stands on open water. This checked only that the
+    // edge existed, which is why a revealed hex could strand one at sea without
+    // anything objecting — the guard was there, looking at the wrong thing.
+    if (state.board.edges[edgeId]?.kind === "sea") {
+      problems.push({
+        rule: "road-placement",
+        detail: `road on ${edgeId}, which is a sea edge`,
+      });
+    }
   }
   for (const edgeId of Object.keys(state.ships)) {
     if (state.board.edges[edgeId] === undefined) {
