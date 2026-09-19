@@ -282,6 +282,21 @@ about two attempts in five on the classic board but one in twenty-five on the
 Regenerate the boards and you get a 200-line whitespace diff unless you follow
 with `prettier --ignore-path /dev/null --write packages/scenarios/data`.
 
+**A rule can be fully implemented and still be unplayable.** `moveShip` had an
+engine reducer, a placement predicate, its own unit tests and ten thousand
+fuzzed games — and no route to the DOM, so nobody could ever do it. The comment
+where the control should have been claimed it was "reachable from the action
+list", which is what kept anyone from checking. `apps/web/src/game/domRoutes.ts`
+is now a compile-time `Record` over the whole `Action` union: a new action will
+not build until somebody states how a player reaches it. Keep it honest — an
+entry of `"none"` fails the suite on purpose.
+
+**Check what the test driver never does.** `drive()` in `uiDriver.tsx` is what
+every slow-lane UI test plays through, and for a whole milestone it never
+clicked a ship control. Both Seafarers UI bugs lived in that blind spot. When
+adding an expansion, teach the driver its new controls first — otherwise the
+tests will keep passing over the parts nobody wrote a line for.
+
 **An engine test cannot see a wire bug.** The Fog Islands reveal worked
 perfectly in the engine, had twenty-one passing tests, and was invisible to
 every player: the board shipped once in the snapshot and updates omitted it, so

@@ -91,6 +91,13 @@ export function GameScreen({
 }): React.JSX.Element {
   const { board, view, log, dispatch } = session;
   const [mode, setMode] = useState<BuildMode>("none");
+  /**
+   * The ship picked up, waiting to be put down (Seafarers p.2).
+   *
+   * A ship move names two edges, so one click cannot express it. The first
+   * click selects rather than dispatches; the second sends the move.
+   */
+  const [pickedShip, setPickedShip] = useState<EdgeId | null>(null);
   const [spotlight, setSpotlight] = useState<EventTargets | null>(null);
   const showStats = useUi((s) => s.showStats);
 
@@ -122,6 +129,12 @@ export function GameScreen({
     setMode("none");
   }, [phase.k, view.currentPlayer]);
 
+  // A ship held mid-move is dropped the moment the gesture is abandoned, so
+  // leaving the mode — or pressing Escape — never leaves a ship half-picked-up.
+  useEffect(() => {
+    if (mode !== "moveShip") setPickedShip(null);
+  }, [mode]);
+
   // Drop a mode the moment it stops being possible, so the board never shows
   // highlights for something you can no longer afford.
   useEffect(() => {
@@ -131,7 +144,8 @@ export function GameScreen({
         (mode === "road" && m.t === "buildRoad") ||
         (mode === "ship" && m.t === "buildShip") ||
         (mode === "settlement" && m.t === "buildSettlement") ||
-        (mode === "city" && m.t === "buildCity"),
+        (mode === "city" && m.t === "buildCity") ||
+        (mode === "moveShip" && m.t === "moveShip"),
     );
     if (!stillPossible) setMode("none");
   }, [mode, moves]);
@@ -178,18 +192,33 @@ export function GameScreen({
           // could not reach a ship the rules were offering them.
           if (mode === "ship") edges.set(move.edge, move);
           break;
-        // `moveShip` is deliberately absent. It names two edges, so clicking
-        // one cannot express it — it wants a pick-up-then-put-down gesture of
-        // its own, and half of one would be worse than none. It stays
-        // reachable from the action list, which is what keeps every legal move
-        // available from the DOM (CLAUDE.md, Conventions).
+        case "moveShip":
+          // A ship move names two edges, so it is a gesture rather than a
+          // click: first the ship, then where it goes. Both halves are ordinary
+          // placements, so the keyboard and screen-reader route works without
+          // any special case in PlacementList.
+          //
+          // This used to fall through to `default` with a comment claiming the
+          // move stayed "reachable from the action list". It did not — nothing
+          // rendered it, and a rule the engine fully implements could not be
+          // performed at all. `domRoutes.test.ts` now fails if any action ends
+          // up in that position again.
+          if (mode !== "moveShip") break;
+          if (pickedShip === null) {
+            // Nothing held yet: light up every ship that has somewhere to go.
+            edges.set(move.from, move);
+          } else if (move.from === pickedShip) {
+            // Holding one: light up only where *it* may land.
+            edges.set(move.to, move);
+          }
+          break;
         default:
           break;
       }
     }
 
     return { nodes, edges, tiles };
-  }, [moves, mode, phase.k]);
+  }, [moves, mode, phase.k, pickedShip]);
 
   const nodeGhost: "settlement" | "city" = mode === "city" ? "city" : "settlement";
   const youColor = colors[view.you] ?? "#ffffff";
@@ -291,7 +320,16 @@ export function GameScreen({
             edges={targets.edges}
             tiles={targets.tiles}
             onAction={(action) => {
+              // The first half of a ship move picks the ship up rather than
+              // playing it: the action carried here is only standing in for
+              // "this ship can move", and its `to` is whichever destination
+              // happened to be listed first.
+              if (action.t === "moveShip" && pickedShip === null) {
+                setPickedShip(action.from);
+                return;
+              }
               dispatch(action);
+              setPickedShip(null);
               setMode("none");
             }}
           />
@@ -429,6 +467,9 @@ function useShortcuts({
           break;
         case "c":
           arm("city", "buildCity");
+          break;
+        case "m":
+          arm("moveShip", "moveShip");
           break;
         case "l":
           toggleListView();

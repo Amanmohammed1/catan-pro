@@ -120,6 +120,33 @@ export function drive(el: HTMLElement): boolean {
     return true;
   };
 
+  /**
+   * Seafarers p.2: pick a ship up, then put it down somewhere legal.
+   *
+   * Two placements rather than one, which is the whole reason the move needed
+   * its own gesture — and the reason it went unexercised for so long.
+   */
+  const tryMoveShip = (): boolean => {
+    const control = action(el, "move-ship");
+    if (control === null || control.disabled) return false;
+    click(control);
+
+    const ship = firstPlacement(el);
+    if (ship === null) {
+      click(control); // nothing to pick up; switch the mode back off
+      return false;
+    }
+    click(ship);
+
+    const destination = firstPlacement(el);
+    if (destination === null) {
+      click(control);
+      return false;
+    }
+    click(destination);
+    return true;
+  };
+
   const here = phase(el);
 
   if (take("roll")) return true;
@@ -186,8 +213,14 @@ export function drive(el: HTMLElement): boolean {
     if (tryBuild("build-city")) return true;
     if (tryBuild("build-settlement")) return true;
     if (tryBuild("build-road")) return true;
+    // Ships, on the boards that have them. Without these the driver never
+    // clicked either ship control, which is how a vanishing Ship button and a
+    // ship move reachable from nowhere both survived a full milestone of UI
+    // tests: every one of them drove games through here.
+    if (tryBuild("build-ship")) return true;
     // Convert surplus into something useful before giving up on the turn.
     if (take("bank-trade")) return true;
+    if (tryMoveShip()) return true;
     if (take("end-turn")) return true;
   }
 

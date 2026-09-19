@@ -27,7 +27,14 @@ import { RESOURCE_NAME } from "./cards/ResourceArt.js";
  * driver find it — never a class name or a label (CLAUDE.md, Conventions).
  */
 
-export type BuildMode = "none" | "settlement" | "city" | "road" | "ship";
+export type BuildMode =
+  | "none"
+  | "settlement"
+  | "city"
+  | "road"
+  | "ship"
+  /** Seafarers p.2: pick up one of your ships, then put it down elsewhere. */
+  | "moveShip";
 
 export interface ActionBarProps {
   readonly view: WireView;
@@ -320,6 +327,25 @@ function BuildGroup({
             hint={<Cost parts={costOf("ship")} />}
           >
             Ship
+          </Button>
+        )}
+        {/* Seafarers p.2: "You may move 1 ship during your Action phase."
+            Shown on any board with ships, like the Ship control beside it —
+            this rule had no control at all until now, so the engine offered a
+            move no player could make. It takes no resources, so it carries no
+            cost hint and cannot go through `whyNot`, which reasons about
+            affordability. */}
+        {view.self.pieces.ships > 0 && (
+          <Button
+            data-action="move-ship"
+            disabled={!can("moveShip")}
+            reason="No ship of yours has a free end to move to"
+            intent={mode === "moveShip" ? "primary" : "default"}
+            onClick={() => {
+              onMode(mode === "moveShip" ? "none" : "moveShip");
+            }}
+          >
+            Move ship
           </Button>
         )}
         <Button

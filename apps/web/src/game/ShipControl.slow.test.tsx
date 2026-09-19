@@ -5,7 +5,7 @@ vi.mock("../three/BoardCanvas.js", () => ({ BoardCanvas: () => null }));
 
 import { describe, it, expect, afterEach } from "vitest";
 import { act } from "react";
-import { completeSetupInUi, drive, mountGame, panel, phase } from "./uiDriver.js";
+import { completeSetupInUi, drive, mountGame, panel, phase, text } from "./uiDriver.js";
 
 /**
  * The Ship control.
@@ -132,6 +132,41 @@ describe("building a ship from the interface", () => {
     // Straight after setup nobody can launch a ship, so the disabled state is
     // reached every run rather than by chance.
     expect(sawDisabled).toBe(true);
+  });
+
+  it("moves a ship end to end, through the DOM alone", () => {
+    /*
+     * Seafarers p.2: "You may move 1 ship during your Action phase."
+     *
+     * The engine implemented, fuzzed and tested this rule while no player could
+     * perform it: `moveShip` reached the DOM from nowhere, and a comment in
+     * GameScreen claimed otherwise. `domRoutes.test.ts` now stops an action
+     * having no route at all — but a declared route is not a working one, so
+     * this drives the gesture itself.
+     *
+     * A ship move takes two clicks: pick a ship up, then put it down. Both are
+     * ordinary placements, so this is also the keyboard and screen-reader path.
+     */
+    const { el, root } = mountGame("ship-move", 4, "new-shores-4");
+    cleanup = () => {
+      act(() => {
+        root.unmount();
+      });
+      el.remove();
+    };
+
+    completeSetupInUi(el);
+
+    for (let i = 0; i < 800; i++) {
+      if (text(el).includes("moved a ship")) break;
+      if (phase(el) === "gameOver") break;
+      if (!drive(el)) break;
+    }
+
+    // Required, not reported. If a driven game cannot reach a ship move, that
+    // is worth failing over: it would mean the gesture is unreachable in
+    // practice even though the route table says it exists.
+    expect(text(el)).toContain("moved a ship");
   });
 
   it("never shows a Ship control on a board without water", () => {
