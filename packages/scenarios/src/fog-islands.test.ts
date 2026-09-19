@@ -29,7 +29,7 @@ describe.each(FOG_BOARDS)("%s composition", (id) => {
   });
 
   it("loads the fog rules on top of Seafarers", () => {
-    expect(scenario.modules).toEqual(["base", "seafarers", "fogIslands"]);
+    expect(scenario.modules).toEqual(["base", "seafarers", "fog"]);
   });
 
   it("leaves exactly twelve spaces empty", () => {

@@ -42,16 +42,16 @@ import type { ModuleEffect, ModuleState, RuleModule } from "./types.js";
  * face-down pile a given space draws from, because that is scenario data and
  * the engine cannot read a scenario at runtime (golden rule 1).
  */
-export interface FogIslandsState extends ModuleState {
-  readonly m: "fogIslands";
+export interface FogState extends ModuleState {
+  readonly m: "fog";
   readonly stackOf: Readonly<Record<TileId, string>>;
 }
 
 /** Narrow a module state slice to this module's own. */
-export function fogIslandsStateOf(state: GameState): FogIslandsState | null {
-  const slice = state.moduleState["fogIslands"];
-  if (slice === undefined || slice.m !== "fogIslands") return null;
-  return slice as FogIslandsState;
+export function fogStateOf(state: GameState): FogState | null {
+  const slice = state.moduleState["fog"];
+  if (slice === undefined || slice.m !== "fog") return null;
+  return slice as FogState;
 }
 
 /** The edge an action put a piece on, or null if it placed none. */
@@ -142,15 +142,15 @@ function resourceFor(terrain: Terrain) {
   return TERRAIN_RESOURCE[terrain];
 }
 
-export const fogIslandsModule: RuleModule = {
-  id: "fogIslands",
+export const fogModule: RuleModule = {
+  id: "fog",
 
-  setupState: (ctx): FogIslandsState => {
+  setupState: (ctx): FogState => {
     const stackOf: Record<TileId, string> = {};
     for (const stack of ctx.scenario.hiddenStacks) {
       for (const coord of stack.cells) stackOf[tileId(coord)] = stack.id;
     }
-    return { m: "fogIslands", stackOf };
+    return { m: "fog", stackOf };
   },
 
   /**
@@ -173,7 +173,7 @@ export const fogIslandsModule: RuleModule = {
     const hidden = fogTilesBeside(state, edge);
     if (hidden.length === 0) return null;
 
-    const fog = fogIslandsStateOf(state);
+    const fog = fogStateOf(state);
     if (fog === null) return null;
 
     let current = state;

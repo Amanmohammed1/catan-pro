@@ -673,7 +673,7 @@ function buildFogBoard({
     schemaVersion: 1,
     players,
     victoryPoints: 12,
-    modules: ["base", "seafarers", "fogIslands"],
+    modules: ["base", "seafarers", "fog"],
     layout: { orientation: "pointy" },
     cells,
     bags: { faceUp: bagOf(faceUpBag) },

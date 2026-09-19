@@ -7,7 +7,7 @@
     "max": 3
   },
   "victoryPoints": 12,
-  "modules": ["base", "seafarers", "fogIslands"],
+  "modules": ["base", "seafarers", "fog"],
   "layout": {
     "orientation": "pointy"
   },

@@ -15,7 +15,7 @@
 
 import { baseModule } from "./base.js";
 import { ext56Module } from "./ext56.js";
-import { fogIslandsModule } from "./fogIslands.js";
+import { fogModule } from "./fog.js";
 import { seafarersModule } from "./seafarers.js";
 import type { Action, Rejection } from "../actions/types.js";
 import type { GameEvent } from "../events/types.js";
@@ -43,20 +43,18 @@ export type {
 } from "./types.js";
 export { BASE_SUPPLY, baseModule } from "./base.js";
 export { ext56Module } from "./ext56.js";
-export {
-  fogIslandsModule,
-  fogIslandsStateOf,
-  type FogIslandsState,
-} from "./fogIslands.js";
+export { fogModule, fogStateOf, type FogState } from "./fog.js";
 export { seafarersModule, seafarersStateOf, type SeafarersState } from "./seafarers.js";
 
 const REGISTRY: Readonly<Record<string, RuleModule>> = {
   base: baseModule,
   ext56: ext56Module,
   seafarers: seafarersModule,
-  // The Fog Islands loads alongside `seafarers`, never instead of it: it adds
-  // the face-down board (p.8) and takes nothing away, so a scenario names both.
-  fogIslands: fogIslandsModule,
+  // Face-down hexes that a player turns over by building beside them
+  // (Seafarers p.8). Named for the mechanic, not for the scenario that
+  // introduced it: The Fog Islands loads it beside `seafarers`, and the Black
+  // Forest — a base-game map with no ships at all — loads it without.
+  fog: fogModule,
 };
 
 export class UnknownModuleError extends Error {}
