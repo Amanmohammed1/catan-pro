@@ -670,15 +670,22 @@ export class GameServer {
   ): void {
     const match = room.getMatch();
     if (match === null) return;
+
+    // The board normally ships once, in the snapshot. The Fog Islands is the
+    // exception: building beside an empty space turns a hex face up (Seafarers
+    // p.8), which changes terrain, a number and six edge kinds. Sending it only
+    // when a reveal actually happened keeps every other update the size it was.
+    const boardChanged = events.some((event) => event.e === "hexRevealed");
+
     room.broadcast((seat) => {
       const view = match.viewFor(seat.player);
-      // The board is static for the match and already shipped in the snapshot.
       const rest: Omit<typeof view, "board"> = view;
       return {
         t: "update",
         events: redactEvents(events, seat.player),
         view: { ...rest, legalMoves: match.legalFor(seat.player) },
         timer: room.timer,
+        ...(boardChanged ? { board: view.board } : {}),
       };
     });
   }

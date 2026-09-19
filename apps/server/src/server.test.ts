@@ -419,6 +419,58 @@ describe("hidden information (golden rule 5)", () => {
     }
   }, 60000);
 
+  it("sends the board again when a hex is revealed", async () => {
+    /*
+     * The bug this exists for: the server revealed hexes correctly and no
+     * client ever heard about it. `WireView` omitted the board and
+     * `broadcastUpdate` stripped it, because the board "never changes for a
+     * match" — true until The Fog Islands deals part of its board during play.
+     *
+     * Twenty-one engine tests passed throughout. They assert on engine state
+     * and never cross the wire, so none of them could see it. This one has to
+     * look at the frames.
+     */
+    const { all } = await seatedGame(4, { scenarioId: "fog-islands-4" });
+
+    const fogCount = (client: TestClient): number =>
+      Object.values(client.board?.tiles ?? {}).filter((t) => t.terrain === "fog")
+        .length;
+
+    const before = fogCount(all[0] as TestClient);
+    expect(before).toBe(12);
+
+    await playToEnd(all, 120);
+
+    for (const client of all) {
+      const updates = client.received
+        .map(
+          (raw) =>
+            JSON.parse(raw) as {
+              t: string;
+              events?: readonly { e: string }[];
+              board?: unknown;
+            },
+        )
+        .filter((frame) => frame.t === "update");
+
+      const reveals = updates.filter((frame) =>
+        (frame.events ?? []).some((event) => event.e === "hexRevealed"),
+      );
+
+      // Four players building for 120 turns on a board with twelve empty
+      // spaces reaches at least one of them.
+      expect(reveals.length).toBeGreaterThan(0);
+
+      // Every frame that revealed something carried the board it changed.
+      for (const frame of reveals) expect(frame.board).toBeDefined();
+    }
+
+    // And the client actually applied it: fewer unexplored hexes than it
+    // started with. Asserting only on the frames would pass even if the client
+    // threw the board away, which is half of what went wrong.
+    expect(fogCount(all[0] as TestClient)).toBeLessThan(before);
+  }, 60000);
+
   it("hides the identity of a stolen card from everyone else", async () => {
     const { all } = await seatedGame(4);
 

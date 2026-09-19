@@ -11,7 +11,7 @@
 import { setupPlayerAt } from "../setup/createGame.js";
 import { extraLegalMoves, resolveModules } from "../modules/index.js";
 import { bestTradeRate, canAfford } from "../state/helpers.js";
-import { citySpots, roadSpots, settlementSpots } from "./placement.js";
+import { citySpots, roadSpots, settlementSpots, shipSpots } from "./placement.js";
 import type { Action } from "../actions/types.js";
 import type { ResourceKind } from "../scenario/types.js";
 import {
@@ -64,9 +64,18 @@ function devCardActions(state: GameState, player: PlayerId): Action[] {
         break;
 
       case "roadBuilding": {
-        // Rules p.10: the two roads follow normal building rules. There is no
-        // point offering the card with nowhere to put a road.
-        if (roadSpots(state, player, { setup: false }).length > 0) {
+        // Rules p.10: the two pieces follow normal building rules. There is no
+        // point offering the card with nowhere to put either of them.
+        //
+        // Seafarers p.3 widens what the card builds: "You may use the Road
+        // Building card to build 2 roads, 2 ships, or 1 road and 1 ship at no
+        // cost." So a player with nowhere to lay a road but somewhere to launch
+        // a ship may still play it. `shipSpots` is empty on any board without
+        // sea edges or ship stock, so this is inert for the base game.
+        const hasSomewhere =
+          roadSpots(state, player, { setup: false }).length > 0 ||
+          shipSpots(state, player).length > 0;
+        if (hasSomewhere) {
           out.push({ t: "playRoadBuilding", player });
         }
         break;
@@ -284,13 +293,32 @@ export function legalMoves(state: GameState, player: PlayerId): Action[] {
 
     case "roadBuilding": {
       if (state.currentPlayer !== player) return [];
-      const spots = roadSpots(state, player, { setup: false });
-      if (spots.length === 0) {
-        // Nowhere left to build: p.10 places the roads "according to normal
+
+      // Seafarers p.3: the card builds "2 roads, 2 ships, or 1 road and 1
+      // ship". Each placement is chosen freely, so both kinds are offered every
+      // time rather than the player committing to one at the start.
+      //
+      // `shipSpots` returns nothing on a board with no sea edges and no ship
+      // stock, so a base game sees exactly the list it always did.
+      const moves: Action[] = [
+        ...roadSpots(state, player, { setup: false }).map((edge) => ({
+          t: "buildRoad" as const,
+          player,
+          edge,
+        })),
+        ...shipSpots(state, player).map((edge) => ({
+          t: "buildShip" as const,
+          player,
+          edge,
+        })),
+      ];
+
+      if (moves.length === 0) {
+        // Nowhere left to build: p.10 places the pieces "according to normal
         // building rules", which may allow fewer than two.
         return [{ t: "endRoadBuilding", player }];
       }
-      return spots.map((edge) => ({ t: "buildRoad" as const, player, edge }));
+      return moves;
     }
 
     case "tradeOffer": {

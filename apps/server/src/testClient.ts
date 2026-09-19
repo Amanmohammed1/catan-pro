@@ -80,6 +80,11 @@ export class TestClient {
         break;
       case "update":
         this.revision++;
+        // Kept unless this update changed it — only a Fog Islands reveal does
+        // (ADR 0009). This mirrored the real client's bug: both assumed the
+        // board was fixed for a match, so a revealed hex never arrived and a
+        // test asserting on `board` would have passed on stale data.
+        if (message.board !== undefined) this.board = message.board;
         this.view = message.view;
         this.log.push(...message.events);
         break;

@@ -282,6 +282,20 @@ about two attempts in five on the classic board but one in twenty-five on the
 Regenerate the boards and you get a 200-line whitespace diff unless you follow
 with `prettier --ignore-path /dev/null --write packages/scenarios/data`.
 
+**An engine test cannot see a wire bug.** The Fog Islands reveal worked
+perfectly in the engine, had twenty-one passing tests, and was invisible to
+every player: the board shipped once in the snapshot and updates omitted it, so
+a hex turned face up on the server and nowhere else. The test client cached it
+the same way, so any test asserting on `client.board` would have passed on stale
+data too. Anything that changes state the client caches needs a test that reads
+the frames, not just the state — `server.test.ts` has one now.
+
+**A rule can be wrong while everything is green.** Road Building offered only
+roads for the whole of M6; Seafarers p.3 allows "2 roads, 2 ships, or 1 road and
+1 ship". The card is base-game machinery and the ship is a module's, and no test
+covered the seam. Fuzzing cannot find this class of bug: a game where the card
+does less than it should still finishes cleanly.
+
 **Never pipe a long background run through `tail`.** The fuzzer and
 `pnpm shots` both print progress as they go, and `… | tail -16` buffers all of
 it until the process exits — so an hour-long run looks identical to a wedged

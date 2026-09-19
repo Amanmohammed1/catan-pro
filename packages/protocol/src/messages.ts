@@ -97,8 +97,15 @@ export interface RoomView {
 /**
  * The per-player view sent over the wire.
  *
- * The board is static for a match, so it ships once in the snapshot and updates
- * omit it.
+ * The board ships in full in the snapshot. Updates omit it, because it almost
+ * never changes — the one exception is The Fog Islands, where building beside
+ * an empty space turns a hex face up (Seafarers p.8, ADR 0009). An update that
+ * changed the board carries the new one alongside the view.
+ *
+ * This comment used to read "the board is static for a match", and the client
+ * was written to believe it. That was true until a scenario arrived that deals
+ * part of its board during play: the server revealed hexes correctly and no
+ * client ever heard about it.
  *
  * `legalMoves` is computed by the server and sent down. The client holds only a
  * redacted view, so it *cannot* run legalMoves() itself — it does not know the
@@ -147,6 +154,11 @@ export type ServerMessage =
       readonly events: readonly GameEvent[];
       readonly view: WireView;
       readonly timer: TimerState | null;
+      /**
+       * The board, resent only when this update changed it (ADR 0009). Absent
+       * on every other update, which is nearly all of them.
+       */
+      readonly board?: PlayerView["board"];
     }
   | { readonly t: "chat"; readonly line: ChatLine }
   | {

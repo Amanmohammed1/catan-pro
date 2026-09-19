@@ -52,13 +52,24 @@ export function seafarersStateOf(state: GameState): SeafarersState | null {
  * module reaching into the reducer's internals is the coupling this interface
  * exists to avoid.
  */
-function whyNotBuilding(state: GameState, player: PlayerId): string | null {
+function whyNotBuilding(
+  state: GameState,
+  player: PlayerId,
+  allowRoadBuilding = false,
+): string | null {
   const phase = state.phase;
   if (phase.k === "main") {
     return state.currentPlayer === player ? null : "Not your turn.";
   }
   if (phase.k === "specialBuild") {
     return phase.queue[0] === player ? null : "Not your building window.";
+  }
+  // Seafarers p.3: the Road Building card may spend a placement on a ship. Only
+  // building qualifies — the card lays pieces, it does not move them — so this
+  // is opt-in per action rather than a blanket allowance for everything that
+  // calls through here.
+  if (allowRoadBuilding && phase.k === "roadBuilding") {
+    return state.currentPlayer === player ? null : "Not your turn.";
   }
   return "You cannot build right now.";
 }
@@ -148,7 +159,11 @@ export const seafarersModule: RuleModule = {
     buildShip: (state, action): ModuleEffect | ReturnType<typeof refuse> | null => {
       if (action.t !== "buildShip") return null;
 
-      const refusal = whyNotBuilding(state, action.player);
+      // Seafarers p.3: "You may use the Road Building card to build 2 roads,
+      // 2 ships, or 1 road and 1 ship at no cost."
+      const free = state.phase.k === "roadBuilding";
+
+      const refusal = whyNotBuilding(state, action.player, true);
       if (refusal !== null) return refuse(action, refusal);
 
       const seat = state.players[action.player];
@@ -157,18 +172,20 @@ export const seafarersModule: RuleModule = {
       if (!canPlaceShip(state, action.player, action.edge)) {
         return refuse(action, "Illegal ship placement.");
       }
-      if (!canAfford(seat.resources, COSTS.ship)) {
+      if (!free && !canAfford(seat.resources, COSTS.ship)) {
         return refuse(action, "You cannot afford a ship.");
       }
 
-      const next: GameState = {
+      let next: GameState = {
         ...state,
-        bank: addResources(state.bank, COSTS.ship),
+        bank: free ? state.bank : addResources(state.bank, COSTS.ship),
         players: state.players.map((s) =>
           s.id === action.player
             ? {
                 ...s,
-                resources: subtractResources(s.resources, COSTS.ship),
+                resources: free
+                  ? s.resources
+                  : subtractResources(s.resources, COSTS.ship),
                 pieces: { ...s.pieces, ships: s.pieces.ships - 1 },
               }
             : s,
@@ -179,11 +196,24 @@ export const seafarersModule: RuleModule = {
         },
       };
 
+      // The card's own bookkeeping. `reduce()` does this for a free road inside
+      // its own case, and a module-owned action has to do it for itself — the
+      // alternative is Seafarers knowledge in the base reducer, which is the
+      // coupling this interface exists to avoid (golden rule 7).
+      if (free && state.phase.k === "roadBuilding") {
+        const phase = state.phase;
+        next = {
+          ...next,
+          phase:
+            phase.remaining - 1 > 0
+              ? { k: "roadBuilding", remaining: 1, returnTo: phase.returnTo }
+              : { k: phase.returnTo },
+        };
+      }
+
       return {
         state: next,
-        events: [
-          { e: "builtShip", player: action.player, edge: action.edge, free: false },
-        ],
+        events: [{ e: "builtShip", player: action.player, edge: action.edge, free }],
       };
     },
 

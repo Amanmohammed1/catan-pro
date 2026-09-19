@@ -140,6 +140,11 @@ export function useConnection(url: string, options: ConnectionOptions = {}) {
           case "update":
             return {
               ...previous,
+              // Kept from the snapshot unless this update changed it, which
+              // only a Fog Islands reveal does (ADR 0009). The board was once
+              // assumed static for a match; a scenario that deals hexes during
+              // play made that false, and the reveal never reached the screen.
+              board: message.board ?? previous.board,
               view: message.view,
               log: [...previous.log, ...message.events],
               deadline: message.timer?.deadline ?? null,

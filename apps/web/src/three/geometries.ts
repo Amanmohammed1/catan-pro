@@ -262,6 +262,37 @@ export function createRobberGeometry(): THREE.BufferGeometry {
   return geometry;
 }
 
+/**
+ * The pirate: a channel-marker buoy, turned on a lathe.
+ *
+ * Deliberately not the robber's silhouette. The two block different things —
+ * the robber stops a hex producing, the pirate stops ships using one — and at
+ * a glance across a board of sea and land you need to know which one you are
+ * looking at without reading the hex underneath it.
+ *
+ * Flared base, pinched waist, a lantern bulge and a tall thin mast: nothing
+ * like the robber's smooth hooded pawn, even in silhouette at a distance.
+ */
+export function createPirateGeometry(): THREE.BufferGeometry {
+  const profile = [
+    [0, 0],
+    [0.22, 0],
+    [0.24, 0.04],
+    [0.2, 0.1],
+    [0.1, 0.2],
+    [0.07, 0.24],
+    [0.13, 0.3],
+    [0.13, 0.38],
+    [0.07, 0.42],
+    [0.035, 0.46],
+    [0.03, 0.62],
+    [0, 0.64],
+  ].map(([x, y]) => new THREE.Vector2(x, y));
+  const geometry = new THREE.LatheGeometry(profile, 24);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 /** A flat ring, used to mark a legal intersection. */
 export function createMarkerRingGeometry(): THREE.BufferGeometry {
   const geometry = new THREE.RingGeometry(0.13, 0.2, 28);

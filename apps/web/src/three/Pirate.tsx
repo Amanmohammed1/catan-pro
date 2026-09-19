@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { BoardGraph, TileId } from "@hexport/engine";
-import { createRobberGeometry } from "./geometries.js";
+import { createPirateGeometry } from "./geometries.js";
 import { SEA_LEVEL, tilePosition } from "./layout3d.js";
 import { prefersReducedMotion } from "../ui/motion.js";
 
@@ -17,9 +17,11 @@ import { prefersReducedMotion } from "../ui/motion.js";
  * Nullable, unlike the robber, because a scenario need not place one and a base
  * game never has one at all.
  *
- * It shares the robber's silhouette in a colder colour rather than getting a
- * shape of its own. The two are the same piece in the player's mind — the thing
- * blocking you — and the hex it stands on already says which is which.
+ * It has a shape of its own — a channel-marker buoy, not the robber's hooded
+ * pawn. This file used to argue the opposite: that the two are "the same piece
+ * in the player's mind" and the hex underneath says which is which. On a board
+ * that is half water that reasoning does not hold up, and the first person to
+ * play it said so.
  */
 export function Pirate({
   board,
@@ -28,7 +30,7 @@ export function Pirate({
   readonly board: BoardGraph;
   readonly tile: TileId | null;
 }): React.JSX.Element | null {
-  const geometry = useMemo(() => createRobberGeometry(), []);
+  const geometry = useMemo(() => createPirateGeometry(), []);
   const mesh = useRef<THREE.Mesh>(null);
   const from = useRef<THREE.Vector3 | null>(null);
   const to = useRef(new THREE.Vector3());
@@ -89,7 +91,8 @@ export function Pirate({
       position={target}
       raycast={() => null}
     >
-      <meshStandardMaterial color="#1f2b33" roughness={0.38} metalness={0.28} />
+      {/* A sea-marker teal, well clear of the robber's near-black. */}
+      <meshStandardMaterial color="#17545c" roughness={0.34} metalness={0.34} />
     </mesh>
   );
 }

@@ -116,6 +116,28 @@ step. What the board genuinely cannot say is which pile a given space draws
 from, since that is static scenario data — so that mapping lives in the module's
 own state slice, which is what module state is for.
 
+### A changed board is resent
+
+This decision was missing from the first version of this ADR, and its absence
+was a bug rather than an omission.
+
+`WireView` omitted the board and the server stripped it from every update,
+because the board was static for a match. This ADR made that false and did not
+follow the consequence through: the server revealed hexes correctly and no
+client ever heard about it. The reveal was invisible in play while twenty-one
+engine tests passed, because they assert on engine state and never cross the
+wire.
+
+The `update` message now carries an optional `board`, sent only when the events
+of that update include a `hexRevealed`. Every other update is the size it always
+was, and a base game never sends one. The test client had cached the board the
+same way the real one did, so it was corrected too — otherwise a test asserting
+on the client's board would have passed on stale data.
+
+The lesson generalises beyond this ADR: a change that makes cached state mutable
+has to be chased into every cache, and the test that proves it has to read the
+frames rather than the state.
+
 ## Known limitation
 
 **Revealing a gold field pays no resource card.** p.8 says the finder takes "1
