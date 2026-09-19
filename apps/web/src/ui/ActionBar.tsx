@@ -300,8 +300,15 @@ function BuildGroup({
             road does with wool for the brick, and the two compete for coastal
             edges — but a ship must have its own control, because a player who
             can afford a ship and not a road would otherwise have no way to
-            reach a move the rules are offering them. */}
-        {can("buildShip") && (
+            reach a move the rules are offering them.
+
+            Shown whenever the board has ships at all, not only when one is
+            placeable right now. It used to render only when a ship was already
+            legal, which made `disabled` permanently false and put its own
+            explanation out of reach: on a Seafarers board with every settlement
+            inland the control simply vanished, and there was no way to tell
+            whether the board had ships or the game had forgotten them. */}
+        {(view.self.pieces.ships > 0 || can("buildShip")) && (
           <Button
             data-action="build-ship"
             disabled={!can("buildShip")}
@@ -797,6 +804,13 @@ function whyNot(
   view: WireView,
   kind: "road" | "settlement" | "city" | "devCard" | "ship",
 ): string {
+  // Running out of pieces outranks affordability: no amount of trading fixes
+  // it. Only ships can reach this message today, because theirs is the only
+  // build control shown while the stock might be empty.
+  if (kind === "ship" && view.self.pieces.ships <= 0) {
+    return "You have no ships left";
+  }
+
   const cost = COSTS[kind];
   const short = RESOURCE_KINDS.filter(
     (resource) => view.self.resources[resource] < cost[resource],

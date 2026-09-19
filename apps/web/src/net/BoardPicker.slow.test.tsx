@@ -189,6 +189,25 @@ describe("choosing a board when creating a room", () => {
     );
   }, 30000);
 
+  it("still shows the board field when only one board fits the seat count", async () => {
+    const el = mount(serverUrl);
+    await readyToCreate(el);
+
+    const six = [...el.querySelectorAll("button")].find(
+      (b) => b.getAttribute("role") === "radio" && b.textContent?.trim() === "6",
+    );
+    click(six);
+    await settle();
+
+    // The field used to be hidden whenever fewer than two boards qualified, so
+    // choosing five or six seats made it disappear altogether — which reads as
+    // "no boards exist" rather than "one board does". A control that vanishes
+    // cannot explain itself, and the test that should have caught this only
+    // asserted which boards were *absent*, so it passed either way.
+    expect(el.querySelector('button[data-board="classic-5-6"]')).not.toBeNull();
+    expect(el.textContent).toContain("Board");
+  }, 30000);
+
   it("offers only boards the chosen seat count can play", async () => {
     const el = mount(serverUrl);
     await readyToCreate(el);

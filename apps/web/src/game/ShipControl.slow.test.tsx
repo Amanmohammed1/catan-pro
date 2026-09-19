@@ -40,7 +40,6 @@ describe("building a ship from the interface", () => {
     completeSetupInUi(el);
 
     let sawShipControl = false;
-    let armedAndPlaced = false;
 
     for (let i = 0; i < 500; i++) {
       if (phase(el) === "gameOver") break;
@@ -60,7 +59,6 @@ describe("building a ship from the interface", () => {
             act(() => {
               spot.dispatchEvent(new MouseEvent("click", { bubbles: true }));
             });
-            armedAndPlaced = true;
             break;
           }
         }
@@ -69,10 +67,71 @@ describe("building a ship from the interface", () => {
       if (!drive(el)) break;
     }
 
-    // The control must exist on a board with water. Whether a ship becomes
-    // affordable inside the run is chance, so that half is reported, not
-    // required — the same reasoning as the gold test.
-    expect(sawShipControl || armedAndPlaced).toBe(true);
+    // The control must exist on a board with water — required, not reported.
+    // This used to read `sawShipControl || armedAndPlaced`, which passed as
+    // long as the control turned up at some point; under the old code that
+    // only happened once a ship was already legal, so the assertion could
+    // never have caught the control being hidden while illegal.
+    // Whether a ship becomes affordable and gets placed inside the run is
+    // chance, so the loop takes the opportunity when it comes but nothing is
+    // asserted about it — the same reasoning as the gold test.
+    expect(sawShipControl).toBe(true);
+  });
+
+  it("keeps the Ship control visible and explained when no ship is placeable", () => {
+    /*
+     * The bug this exists for: the control rendered only when a ship was
+     * already legal, so on a Seafarers board with every settlement inland it
+     * vanished entirely. A player could not tell whether the board had ships or
+     * the game had forgotten them — and because the row was hidden rather than
+     * disabled, the reason string written for exactly this case was
+     * unreachable.
+     *
+     * CLAUDE.md: "Every disabled control says why, via `title`."
+     */
+    const { el, root } = mountGame("ship-explained", 4, "through-the-desert-4");
+    cleanup = () => {
+      act(() => {
+        root.unmount();
+      });
+      el.remove();
+    };
+
+    completeSetupInUi(el);
+
+    let sawDisabled = false;
+
+    for (let i = 0; i < 120; i++) {
+      // Keyed off the Road control rather than asserted unconditionally: the
+      // build group only exists during your own main phase, so on someone
+      // else's turn — or while rolling, discarding or moving the robber —
+      // there is no Road either, and demanding a Ship there proves nothing.
+      //
+      // Wherever Road is offered, Ship must be offered too. That is exactly
+      // what was broken: Road rendered always and greyed out, Ship vanished.
+      const road = panel(el).querySelector<HTMLButtonElement>(
+        'button[data-action="build-road"]',
+      );
+
+      if (road !== null) {
+        const ship = panel(el).querySelector<HTMLButtonElement>(
+          'button[data-action="build-ship"]',
+        );
+        expect(ship).not.toBeNull();
+
+        if (ship !== null && ship.disabled) {
+          sawDisabled = true;
+          expect(ship.title.trim()).not.toBe("");
+        }
+      }
+
+      if (phase(el) === "gameOver") break;
+      if (!drive(el)) break;
+    }
+
+    // Straight after setup nobody can launch a ship, so the disabled state is
+    // reached every run rather than by chance.
+    expect(sawDisabled).toBe(true);
   });
 
   it("never shows a Ship control on a board without water", () => {

@@ -231,49 +231,58 @@ function JoinForm({
         </p>
       </Field>
 
-      {boards.length > 1 && (
-        <Field label="Board" htmlFor="board">
-          <div
-            className="flex flex-col gap-1.5"
-            role="radiogroup"
-            aria-labelledby="board-label"
-          >
-            {boards.map(({ id, scenario }) => {
-              const picked = chosen === null ? boards[0]?.id === id : chosen === id;
-              const seafaring = scenario.modules.includes("seafarers");
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  role="radio"
-                  aria-checked={picked}
-                  data-board={id}
-                  title={
-                    seafaring
-                      ? `${scenario.name} — ships, gold fields and the pirate; ${String(scenario.victoryPoints)} points to win`
-                      : `${scenario.name} — ${String(scenario.victoryPoints)} points to win`
-                  }
-                  onClick={() => {
-                    setBoard(id);
-                  }}
-                  className={[
-                    "rounded-[11px] border px-3 py-2 text-left text-sm transition-colors",
-                    picked
-                      ? "border-gold/60 bg-gold/15 text-gold"
-                      : "border-gold/15 bg-surface-700/60 text-ink-300 hover:bg-surface-600",
-                  ].join(" ")}
-                >
-                  {scenario.name}
-                  <span className="ml-2 text-[11px] opacity-70">
-                    {scenario.victoryPoints} points
-                    {seafaring ? " · ships" : ""}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </Field>
-      )}
+      {/* Always shown, even when the seat count leaves only one board. It used
+          to be hidden below two options, which meant picking five or six seats
+          made the whole field vanish — reading as "no boards" rather than "one
+          board". A control that disappears cannot explain itself. */}
+      <Field label="Board" htmlFor="board">
+        {boards.length === 1 && (
+          <p className="mb-1.5 text-[11px] text-ink-700">
+            The only board built for this many seats. The Seafarers maps seat three or
+            four; their five and six player versions are a separate expansion we have
+            not built yet.
+          </p>
+        )}
+        <div
+          className="flex flex-col gap-1.5"
+          role="radiogroup"
+          aria-labelledby="board-label"
+        >
+          {boards.map(({ id, scenario }) => {
+            const picked = chosen === null ? boards[0]?.id === id : chosen === id;
+            const seafaring = scenario.modules.includes("seafarers");
+            return (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={picked}
+                data-board={id}
+                title={
+                  seafaring
+                    ? `${scenario.name} — ships, gold fields and the pirate; ${String(scenario.victoryPoints)} points to win`
+                    : `${scenario.name} — ${String(scenario.victoryPoints)} points to win`
+                }
+                onClick={() => {
+                  setBoard(id);
+                }}
+                className={[
+                  "rounded-[11px] border px-3 py-2 text-left text-sm transition-colors",
+                  picked
+                    ? "border-gold/60 bg-gold/15 text-gold"
+                    : "border-gold/15 bg-surface-700/60 text-ink-300 hover:bg-surface-600",
+                ].join(" ")}
+              >
+                {scenario.name}
+                <span className="ml-2 text-[11px] opacity-70">
+                  {scenario.victoryPoints} points
+                  {seafaring ? " · ships" : ""}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </Field>
 
       <Button
         intent="primary"
