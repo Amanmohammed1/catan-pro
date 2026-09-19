@@ -826,6 +826,172 @@ const fogThree = buildFogBoard({
   ],
 });
 
+// ---------------------------------------------------------------------------
+// The Black Forest.
+//
+// Not a Seafarers scenario at all: a base-game map that borrows the fog. It has
+// no ships, no islands worth points, and wins at ten. Source is
+// docs/design/rush-and-black-forest.md, which is a reconstruction rather than a
+// transcription — Colonist ships this as a custom map with no rules page — so
+// ADR 0010 records which parts are cited and which are inferred.
+//
+// The shape of it, and why:
+//
+//   - The known board is almost entirely forest. Every opening intersection
+//     produces lumber, so lumber is nearly worthless and no balanced starting
+//     spot exists. That inversion is the whole design.
+//   - A desert sits at the centre with the robber on it, inside a small lake.
+//     The 2:1 lumber harbours face *inward* onto that lake, which makes the
+//     middle the only place to convert the wood everyone is drowning in.
+//   - Fog rings the outside. The scarce resources — brick, wool, grain, ore —
+//     are all in there, so the only route to a balanced economy is to spend the
+//     wood you have on roads and go looking.
+//
+// The outline is ours, as it is for every board here: the source has a picture,
+// not coordinates, and transcribing a diagram by eye is the error this
+// generator exists to avoid (ADR 0008). The composition is what matters and is
+// stated exactly below.
+// ---------------------------------------------------------------------------
+
+function buildBlackForest() {
+  const heart = [0, 0];
+  const lake = shell([heart]);
+  const lakeKeys = new Set(lake.map(key));
+
+  const core = hexDisc(3);
+  const inner = new Set([key(heart), ...lakeKeys]);
+  const forest = core.filter((hex) => !inner.has(key(hex)));
+
+  // One ring of fog around everything. Each hex is a road's worth of gamble.
+  const fog = shell(core);
+  const centre = centroid(core);
+
+  // Every hex on the known board is forest but the one desert in the middle.
+  const forestBag = { forest: forest.length };
+
+  // What the fog is hiding: everything the known board lacks, and no forest at
+  // all. Inferred — the source gives weights for the known board and says
+  // nothing about the stack — but the intent is not in doubt: exploration is
+  // the only route to brick, wool, grain and ore. The sea hexes are the risk
+  // half of the gamble, a road spent on open water.
+  const fogStack = { sea: 4, hill: 5, pasture: 5, field: 5, mountain: 5 };
+
+  // Thirty numbered forest hexes; the desert takes none.
+  const discs = [
+    { value: 2, count: 2 },
+    { value: 3, count: 3 },
+    { value: 4, count: 3 },
+    { value: 5, count: 4 },
+    { value: 6, count: 3 },
+    { value: 8, count: 3 },
+    { value: 9, count: 4 },
+    { value: 10, count: 3 },
+    { value: 11, count: 3 },
+    { value: 12, count: 2 },
+  ];
+
+  // Twenty discs for the twenty land hexes in the stack.
+  const fogDiscs = [
+    { value: 2, count: 1 },
+    { value: 3, count: 2 },
+    { value: 4, count: 2 },
+    { value: 5, count: 3 },
+    { value: 6, count: 2 },
+    { value: 8, count: 2 },
+    { value: 9, count: 3 },
+    { value: 10, count: 2 },
+    { value: 11, count: 2 },
+    { value: 12, count: 1 },
+  ];
+
+  const cells = [
+    { coord: heart, slot: "land", terrain: "desert", island: "heart" },
+    ...lake.map((coord) => ({ coord, slot: "sea", terrain: "sea" })),
+    ...forest.map((coord) => ({
+      coord,
+      slot: "land",
+      bag: "forest",
+      island: "forest",
+    })),
+    ...fog.map((coord) => ({
+      coord,
+      slot: "fog",
+      terrain: "fog",
+      island: "unexplored",
+    })),
+  ];
+
+  if (totalOf(forestBag) !== forest.length) {
+    throw new Error(`black forest: bag ${totalOf(forestBag)} for ${forest.length}`);
+  }
+  if (totalOf(fogStack) !== fog.length) {
+    throw new Error(
+      `black forest: stack ${totalOf(fogStack)} for ${fog.length} spaces`,
+    );
+  }
+  const discTotal = discs.reduce((sum, d) => sum + d.count, 0);
+  if (discTotal !== forest.length) {
+    throw new Error(`black forest: ${discTotal} discs for ${forest.length} forest`);
+  }
+  const fogLand = totalOf(fogStack) - (fogStack.sea ?? 0);
+  const fogDiscTotal = fogDiscs.reduce((sum, d) => sum + d.count, 0);
+  if (fogDiscTotal !== fogLand) {
+    throw new Error(`black forest: ${fogDiscTotal} fog discs for ${fogLand} land`);
+  }
+
+  return {
+    id: "black-forest",
+    name: "The Black Forest",
+    schemaVersion: 1,
+    players: { min: 3, max: 4 },
+    victoryPoints: 10,
+    // No ships, no Seafarers. Only the fog, which is a mechanic of its own.
+    modules: ["base", "fog"],
+    layout: { orientation: "pointy" },
+    cells,
+    bags: { forest: bagOf(forestBag) },
+    numbers: {
+      mode: "bag",
+      tokens: discs,
+      path: peelSpiral([heart, ...forest]),
+      skipTerrains: ["desert", "sea", "fog"],
+      // Deliberately unbalanced, per the source: the fog region's numbers are
+      // not laid out the way a standard board's are, and the argument for
+      // keeping it that way is that it makes the unexplored ground worth
+      // gambling on rather than settling safely at home.
+    },
+    // Lumber harbours, facing inward onto the lake. On a board where everyone
+    // has wood, a 2:1 that takes it is the only reliable way to turn a surplus
+    // into anything else.
+    ports: portsAt(shoreline(forest, lakeKeys, centre), [
+      two("lumber"),
+      two("lumber"),
+      two("lumber"),
+      two("lumber"),
+      two("lumber"),
+      two("lumber"),
+    ]),
+    pieces: { roads: 15, settlements: 5, cities: 4, ships: 0 },
+    setup: { mode: "snakeDraft", rounds: 2, placeOn: ["land"] },
+    islands: [
+      { id: "forest", vpForFirstSettlement: 0 },
+      { id: "heart", vpForFirstSettlement: 0 },
+      { id: "unexplored", vpForFirstSettlement: 0 },
+    ],
+    hiddenStacks: [
+      {
+        id: "fog",
+        cells: fog,
+        contents: expandTerrains(fogStack),
+        numbers: expandDiscs(fogDiscs),
+      },
+    ],
+    startingPieces: [],
+  };
+}
+
+const blackForest = buildBlackForest();
+
 const here = dirname(fileURLToPath(import.meta.url));
 const outDir = join(here, "..", "packages", "scenarios", "data");
 mkdirSync(outDir, { recursive: true });
@@ -837,6 +1003,7 @@ for (const scenario of [
   desertFour,
   fogThree,
   fogFour,
+  blackForest,
 ]) {
   const outFile = join(outDir, `${scenario.id}.json`);
   writeFileSync(outFile, `${JSON.stringify(scenario, null, 2)}\n`);

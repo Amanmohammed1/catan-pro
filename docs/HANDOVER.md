@@ -182,6 +182,10 @@ Eight ADRs, in `docs/adr/`. The newest matter most:
   overlaying it, why an unrevealed neighbour makes an edge coastal (it is forced
   by p.8, not chosen), the `afterAction` hook, and the one rule the rulebooks do
   not settle — how many spaces a single placement uncovers.
+- **0010** — The Black Forest: building a board from a reconstruction rather
+  than a rulebook, and recording exactly which parts are cited, which reuse
+  rules we already hold, and which are ours outright. Also why the fog module
+  is named for the mechanic rather than for the scenario that introduced it.
 
 - **0004** — the board is painted in code, not shipped as art. No binary assets,
   OFL fonts from npm, and a local Lightformer environment rather than drei's
